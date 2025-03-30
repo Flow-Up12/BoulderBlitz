@@ -34,7 +34,7 @@ const SpecialUpgradeItem = ({ upgrade, onPress, disabled }: SpecialUpgradeItemPr
       <View style={styles.upgradeContent}>
         <Text style={styles.upgradeName}>{upgrade.name}</Text>
         <Text style={styles.upgradeDescription}>{upgrade.description}</Text>
-        <Text style={styles.upgradeEffect}>{upgrade.effect}</Text>
+        <Text style={styles.upgradeEffect}>{getEffectDescription(upgrade.effect)}</Text>
         
         {!upgrade.owned && (
           <View style={styles.costContainer}>
@@ -213,4 +213,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-}); 
+});
+
+// Add this helper function to convert effect IDs into readable text
+const getEffectDescription = (effectId: string): string => {
+  const effectMap = {
+    'doubles_cpc': 'Doubles click power',
+    'boosts_auto_miners': 'Auto miners work 50% faster',
+    'click_combo': 'Every 10 clicks gives 10x CPC bonus',
+    'offline_progress': 'Earn coins while away',
+    'increases_cpc_by_25_percent': '25% boost to click power',
+    'increases_cps_by_25_percent': '25% boost to auto miners',
+    'triples_pickaxe_effects': 'Triple effect of all pickaxes',
+    'chance_for_double_coins': '10% chance for double coins per click',
+    'faster_ability_cooldown': '50% faster ability cooldowns',
+    'easier_rebirth': '20% less coins needed for rebirth'
+  };
+  
+  return effectMap[effectId] || effectId;
+}; 

@@ -49,7 +49,6 @@ export default function GameScreen() {
   const [newAchievement, setNewAchievement] = useState(null);
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [showDbError, setShowDbError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
   // For shop panel animation
@@ -58,7 +57,7 @@ export default function GameScreen() {
   const minShopHeight = 70;
   
   // Tutorial state
-  const [showTutorial, setShowTutorial] = useState(true);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const tutorialOpacity = useRef(new Animated.Value(0)).current;
   const [highlightedElement, setHighlightedElement] = useState(null);
@@ -66,7 +65,7 @@ export default function GameScreen() {
   // Tutorial steps with element positions
   const tutorialSteps = [
     {
-      title: "Welcome to Rock Clicker!",
+      title: "Welcome to BoulderBlitz!",
       message: "Let's learn how to become a master rock miner!",
       target: null,
       position: 'center'
@@ -83,8 +82,12 @@ export default function GameScreen() {
       target: "shop",
       position: 'bottom',
       action: () => {
-        if (!isShopExpanded) {
-          toggleShopPanel();
+        try {
+          if (!isShopExpanded) {
+            toggleShopPanel();
+          }
+        } catch (error) {
+          console.error("Error in tutorial action:", error);
         }
       }
     },
@@ -94,10 +97,14 @@ export default function GameScreen() {
       target: "miners",
       position: 'bottom',
       action: () => {
-        if (!isShopExpanded) {
-          toggleShopPanel();
+        try {
+          if (!isShopExpanded) {
+            toggleShopPanel();
+          }
+          setActiveShopTab('miners');
+        } catch (error) {
+          console.error("Error in tutorial action:", error);
         }
-        setActiveShopTab('miners');
       }
     },
     {
@@ -106,10 +113,14 @@ export default function GameScreen() {
       target: "abilities",
       position: 'bottom',
       action: () => {
-        if (!isShopExpanded) {
-          toggleShopPanel();
+        try {
+          if (!isShopExpanded) {
+            toggleShopPanel();
+          }
+          setActiveShopTab('abilities');
+        } catch (error) {
+          console.error("Error in tutorial action:", error);
         }
-        setActiveShopTab('abilities');
       }
     },
     {
@@ -118,7 +129,11 @@ export default function GameScreen() {
       target: "settings",
       position: 'right',
       action: () => {
-        router.push('/settings');
+        try {
+          router.push('/settings');
+        } catch (error) {
+          console.error("Error in tutorial action:", error);
+        }
       }
     }
   ];
@@ -261,13 +276,6 @@ export default function GameScreen() {
     }
   }, [state.achievements, newAchievement]);
   
-  // Show database error if it exists
-  useEffect(() => {
-    if (databaseError) {
-      setShowDbError(true);
-    }
-  }, [databaseError]);
-  
   // Navigation functions
   const navigateToAchievements = () => {
     router.push('/achievements');
@@ -316,46 +324,73 @@ export default function GameScreen() {
   // Handle tutorial animations
   useEffect(() => {
     if (showTutorial) {
-      Animated.timing(tutorialOpacity, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true
-      }).start();
+      try {
+        Animated.timing(tutorialOpacity, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true
+        }).start();
+      } catch (error) {
+        console.error("Error in tutorial animation:", error);
+        // Safely disable tutorial if animation fails
+        setShowTutorial(false);
+      }
     }
-  }, [tutorialStep]);
+  }, [tutorialStep, showTutorial]);
 
   // Handle tutorial progression with actions
   const advanceTutorial = () => {
-    const currentStep = tutorialSteps[tutorialStep];
-    
-    // Execute the action for the current step if it exists
-    if (currentStep.action) {
-      currentStep.action();
-    }
+    try {
+      const currentStep = tutorialSteps[tutorialStep];
+      
+      // Execute the action for the current step if it exists
+      if (currentStep && currentStep.action) {
+        currentStep.action();
+      }
 
-    if (tutorialStep < tutorialSteps.length - 1) {
-      Animated.timing(tutorialOpacity, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true
-      }).start(() => {
-        setTutorialStep(prev => prev + 1);
-      });
-    } else {
+      if (tutorialStep < tutorialSteps.length - 1) {
+        Animated.timing(tutorialOpacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true
+        }).start(() => {
+          setTutorialStep(prev => prev + 1);
+        });
+      } else {
+        setShowTutorial(false);
+        // Save that tutorial has been completed
+        try {
+          AsyncStorage.setItem('tutorialCompleted', 'true');
+        } catch (error) {
+          console.error("Error saving tutorial completion status:", error);
+        }
+      }
+    } catch (error) {
+      console.error("Error advancing tutorial:", error);
+      // Safely disable tutorial if it crashes
       setShowTutorial(false);
-      // Save that tutorial has been completed
-      AsyncStorage.setItem('tutorialCompleted', 'true');
     }
   };
 
   // Check if tutorial should be shown
   useEffect(() => {
     const checkTutorial = async () => {
-      const tutorialCompleted = await AsyncStorage.getItem('tutorialCompleted');
-      setShowTutorial(!tutorialCompleted);
+      try {
+        const tutorialCompleted = await AsyncStorage.getItem('tutorialCompleted');
+        // Only show tutorial if it hasn't been completed and game is loaded
+        setShowTutorial(!tutorialCompleted && !isLoading);
+      } catch (error) {
+        console.error("Error checking tutorial status:", error);
+        // Default to not showing tutorial if there's an error
+        setShowTutorial(false);
+      }
     };
-    checkTutorial();
-  }, []);
+    
+    // Only check tutorial status once loading is complete
+    if (!isLoading) {
+      checkTutorial();
+    }
+  }, [isLoading]);
   
   // Get tutorial position based on current step
   const getTutorialPosition = () => {
@@ -586,18 +621,6 @@ export default function GameScreen() {
           style={styles.snackbar}
         >
           {snackbarMessage}
-        </Snackbar>
-        
-        <Snackbar
-          visible={showDbError}
-          onDismiss={() => setShowDbError(false)}
-          action={{
-            label: 'Fix',
-            onPress: () => router.push('/admin'),
-          }}
-          duration={6000}
-        >
-          {databaseError}
         </Snackbar>
 
         {showTutorial && (

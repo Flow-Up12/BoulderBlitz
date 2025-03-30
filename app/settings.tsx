@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, Modal, Platform } from 'react-native';
-import { List, Switch, Button, Text, Divider, Card, Title, Paragraph, FAB, Portal, Dialog, TextInput } from 'react-native-paper';
+import { StyleSheet, View, ScrollView, Platform } from 'react-native';
+import { List, Switch, Button, Text, Card, Title, Paragraph, Dialog, TextInput } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -9,16 +9,14 @@ import { useAuth } from '../context/AuthContext';
 import { formatCoins } from '../utils/formatters';
 import { supabase } from '../lib/supabase/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { TouchableOpacity, Alert } from 'react-native';
 import { initialState } from '../context/GameContext';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 44 : 0;
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { state, dispatch, saveGame, handleRestartGame, forceSyncData } = useGameContext();
+  const { state, dispatch, saveGame, handleRestartGame } = useGameContext();
   const { signOut, authState } = useAuth();
   
   // Modal states
@@ -26,37 +24,12 @@ export default function SettingsScreen() {
   const [deleteAccountDialogVisible, setDeleteAccountDialogVisible] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
 
   // Local state for toggles
   const [offlineProgress, setOfflineProgress] = useState(state.offlineProgressEnabled);
   const [notifications, setNotifications] = useState(state.notificationsEnabled);
   const [sound, setSound] = useState(state.soundEnabled);
   const [haptics, setHaptics] = useState(state.hapticsEnabled);
-
-  // Add state for sync status
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState('');
-  const [syncSuccess, setSyncSuccess] = useState(null);
-
-  // Check if user is admin
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      if (authState.user?.id) {
-        const { data, error } = await supabase
-          .from('users')
-          .select('is_admin')
-          .eq('id', authState.user.id)
-          .single();
-          
-        if (!error && data) {
-          setIsAdmin(data.is_admin || false);
-        }
-      }
-    };
-    
-    checkAdminStatus();
-  }, [authState.user?.id]);
 
   // Handle logout
   const handleLogout = async () => {
@@ -120,8 +93,10 @@ export default function SettingsScreen() {
         await supabase.from('users').delete().eq('id', authState.user.id);
       }
       
-      // Delete the user auth account
-      const { error } = await supabase.auth.admin.deleteUser(authState.user?.id || '');
+      // User deletes their own account
+      const { error } = await supabase.auth.updateUser({
+        data: { deleted: true }
+      });
       
       if (error) {
         console.error('Error deleting account:', error);
@@ -211,71 +186,6 @@ export default function SettingsScreen() {
       Alert.alert('Error', 'Could not delete data. Please try again later.');
     }
   };
-  
-  const handleExportData = () => {
-    try {
-      // Create a string version of the game data
-      const exportData = JSON.stringify(state, null, 2);
-      
-      // In a real app, we would share this data via a share sheet
-      // For now, we'll just show it in an alert
-      Alert.alert(
-        'Export Data', 
-        'Data ready for export. In a full implementation, this would open a share sheet.',
-        [
-          { text: 'OK' }
-        ]
-      );
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      Alert.alert('Error', 'Could not export data. Please try again later.');
-    }
-  };
-  
-  const handleImportData = () => {
-    // In a real app, this would open a file picker
-    Alert.alert(
-      'Import Data',
-      'This would allow you to import previously exported game data.',
-      [
-        { text: 'OK' }
-      ]
-    );
-  };
-
-  // Function to handle manual sync
-  const handleSyncData = async () => {
-    if (!authState.isAuthenticated) {
-      Alert.alert('Sign In Required', 'You need to be signed in to sync data across devices.');
-      return;
-    }
-    
-    setIsSyncing(true);
-    setSyncMessage('');
-    setSyncSuccess(null);
-    
-    try {
-      const result = await forceSyncData();
-      setSyncSuccess(result.success);
-      setSyncMessage(result.message);
-      
-      // Show feedback to user
-      if (result.success) {
-        // Success feedback
-        Alert.alert('Sync Complete', result.message);
-      } else {
-        // Error feedback
-        Alert.alert('Sync Issue', result.message);
-      }
-    } catch (error) {
-      console.error('Error during manual sync:', error);
-      setSyncSuccess(false);
-      setSyncMessage('An unexpected error occurred. Please try again later.');
-      Alert.alert('Sync Error', 'An unexpected error occurred. Please try again later.');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -285,14 +195,6 @@ export default function SettingsScreen() {
           <Card.Content>
             <Title style={styles.title}>Hi, {authState.user?.username || 'Player'}!</Title>
             <Paragraph style={styles.paragraph}>Manage your game settings and view your stats</Paragraph>
-            {isAdmin && (
-              <TouchableOpacity 
-                style={styles.adminButton}
-                onPress={() => router.push('/admin')}
-              >
-                <Text style={styles.adminButtonText}>Admin Panel</Text>
-              </TouchableOpacity>
-            )}
           </Card.Content>
         </Card>
 
@@ -411,14 +313,6 @@ export default function SettingsScreen() {
 
         <List.Section>
           <List.Subheader style={styles.listSubheader}>Account</List.Subheader>
-          <List.Item
-            title="Save Game"
-            titleStyle={styles.listTitle}
-            description="Manually save your progress"
-            descriptionStyle={styles.listDescription}
-            left={props => <List.Icon {...props} icon="content-save" color="#ffffff" />}
-            onPress={saveGame}
-          />
           {authState.isAuthenticated ? (
             <>
               <List.Item
@@ -448,148 +342,86 @@ export default function SettingsScreen() {
               onPress={handleLogin}
             />
           )}
-        </List.Section>
-
-        <List.Section>
-          <List.Subheader style={styles.listSubheader}>Data Management</List.Subheader>
           <List.Item
-            title="Export Game Data"
-            titleStyle={styles.listTitle}
-            description="Export your game data for backup or sharing"
-            descriptionStyle={styles.listDescription}
-            left={props => <List.Icon {...props} icon="export" color="#ffffff" />}
-            onPress={handleExportData}
-          />
-          <List.Item
-            title="Import Game Data"
-            titleStyle={styles.listTitle}
-            description="Import game data from a previous session"
-            descriptionStyle={styles.listDescription}
-            left={props => <List.Icon {...props} icon="import" color="#ffffff" />}
-            onPress={handleImportData}
-          />
-          <List.Item
-            title="Delete All Game Data"
+            title="Reset Progress"
             titleStyle={{ ...styles.listTitle, color: '#CF6679' }}
             description="Delete all game data and reset progress"
             descriptionStyle={styles.listDescription}
-            left={props => <List.Icon {...props} icon="delete" color="#CF6679" />}
+            left={props => <List.Icon {...props} icon="refresh" color="#CF6679" />}
             onPress={confirmDataDeletion}
           />
         </List.Section>
 
-        {/* Cross-device Sync Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cross-Device Sync</Text>
-          <TouchableOpacity
-            style={[
-              styles.bigButton,
-              authState.isAuthenticated ? styles.syncButton : styles.disabledButton
-            ]}
-            onPress={handleSyncData}
-            disabled={!authState.isAuthenticated || isSyncing}
-          >
-            {isSyncing ? (
-              <ActivityIndicator color="#FFF" size="small" />
-            ) : (
-              <>
-                <MaterialCommunityIcons name="sync" size={24} color="#FFF" style={styles.buttonIcon} />
-                <Text style={styles.bigButtonText}>Sync Data Across Devices</Text>
-              </>
-            )}
-          </TouchableOpacity>
-          
-          {syncMessage ? (
-            <Text style={[
-              styles.syncMessage,
-              syncSuccess ? styles.syncSuccess : styles.syncError
-            ]}>
-              {syncMessage}
-            </Text>
-          ) : (
-            <Text style={styles.syncHelper}>
-              {authState.isAuthenticated 
-                ? 'Keep your progress in sync across all your devices'
-                : 'Sign in to enable cross-device synchronization'}
-            </Text>
-          )}
-        </View>
-
-        <View style={styles.buttonContainer}>
-          <Button 
-            mode="contained" 
-            onPress={() => router.back()}
-            style={styles.button}
-            labelStyle={styles.buttonLabel}
-          >
-            Back to Game
-          </Button>
-        </View>
       </ScrollView>
-      
-      <FAB
-        icon="arrow-left"
-        style={styles.fab}
-        onPress={() => router.back()}
-        color="#FFFFFF"
+
+      {/* Logout Dialog */}
+      <LogoutDialog
+        visible={logoutDialogVisible}
+        onDismiss={() => setLogoutDialogVisible(false)}
+        onConfirm={handleLogout}
       />
       
-      {/* Logout confirmation dialog */}
-      <Portal>
-        <Dialog visible={logoutDialogVisible} onDismiss={() => setLogoutDialogVisible(false)} style={styles.dialog}>
-          <Dialog.Title style={styles.dialogTitle}>Confirm Logout</Dialog.Title>
-          <Dialog.Content>
-            <Text style={styles.dialogContent}>
-              Are you sure you want to log out? Your game will be saved automatically.
-            </Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setLogoutDialogVisible(false)} color="#AAAAAA">
-              Cancel
-            </Button>
-            <Button onPress={handleLogout} color="#7B68EE">
-              Logout
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
-      
-      {/* Delete account confirmation dialog */}
-      <Portal>
-        <Dialog visible={deleteAccountDialogVisible} onDismiss={() => setDeleteAccountDialogVisible(false)} style={styles.dialog}>
-          <Dialog.Title style={styles.dialogTitle}>Delete Account</Dialog.Title>
-          <Dialog.Content>
-            <Text style={styles.dialogContent}>
-              Are you sure you want to delete your account? This action cannot be undone and all your game data will be permanently lost.
-            </Text>
-            <TextInput
-              label="Confirm your password"
-              secureTextEntry
-              value={deletePassword}
-              onChangeText={setDeletePassword}
-              style={styles.passwordInput}
-              mode="outlined"
-              outlineColor="#CF6679"
-              activeOutlineColor="#CF6679"
-              theme={{ colors: { text: '#FFFFFF', placeholder: '#AAAAAA' } }}
-            />
-            {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => {
-              setDeleteAccountDialogVisible(false);
-              setDeletePassword('');
-              setErrorMessage('');
-            }} color="#AAAAAA">
-              Cancel
-            </Button>
-            <Button onPress={handleDeleteAccount} color="#CF6679">
-              Delete
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      {/* Delete Account Dialog */}
+      <DeleteAccountDialog
+        visible={deleteAccountDialogVisible}
+        onDismiss={() => {
+          setDeleteAccountDialogVisible(false);
+          setDeletePassword('');
+          setErrorMessage('');
+        }}
+        onConfirm={handleDeleteAccount}
+        password={deletePassword}
+        onChangePassword={setDeletePassword}
+        errorMessage={errorMessage}
+      />
     </SafeAreaView>
+  );
+}
+
+// Logout Dialog Component
+function LogoutDialog({ visible, onDismiss, onConfirm }) {
+  return (
+    <Dialog visible={visible} onDismiss={onDismiss} style={styles.dialog}>
+      <Dialog.Title style={styles.dialogTitle}>Log Out</Dialog.Title>
+      <Dialog.Content>
+        <Text style={styles.dialogContent}>
+          Are you sure you want to log out? Your progress will be saved.
+        </Text>
+      </Dialog.Content>
+      <Dialog.Actions>
+        <Button onPress={onDismiss}>Cancel</Button>
+        <Button onPress={onConfirm}>Log Out</Button>
+      </Dialog.Actions>
+    </Dialog>
+  );
+}
+
+// Delete Account Dialog Component
+function DeleteAccountDialog({ visible, onDismiss, onConfirm, password, onChangePassword, errorMessage }) {
+  return (
+    <Dialog visible={visible} onDismiss={onDismiss} style={styles.dialog}>
+      <Dialog.Title style={styles.dialogTitle}>Delete Account</Dialog.Title>
+      <Dialog.Content>
+        <Text style={styles.dialogContent}>
+          This will permanently delete your account and all associated game data. This action cannot be undone.
+        </Text>
+        <Text style={styles.dialogContent}>
+          Please enter your password to confirm:
+        </Text>
+        <TextInput
+          value={password}
+          onChangeText={onChangePassword}
+          secureTextEntry
+          style={styles.passwordInput}
+          placeholder="Password"
+        />
+        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+      </Dialog.Content>
+      <Dialog.Actions>
+        <Button onPress={onDismiss}>Cancel</Button>
+        <Button onPress={onConfirm} color="#CF6679">Delete</Button>
+      </Dialog.Actions>
+    </Dialog>
   );
 }
 
@@ -680,64 +512,5 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#CF6679',
     marginTop: 8,
-  },
-  adminButton: {
-    backgroundColor: '#ff9800',
-    padding: 8,
-    borderRadius: 5,
-    marginTop: 10,
-    alignItems: 'center',
-  },
-  adminButtonText: {
-    color: '#000',
-    fontWeight: 'bold',
-  },
-  section: {
-    margin: 16,
-  },
-  sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  bigButton: {
-    backgroundColor: '#4a6da7',
-    padding: 16,
-    borderRadius: 5,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  bigButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  buttonIcon: {
-    marginRight: 8,
-  },
-  syncButton: {
-    backgroundColor: '#4a6da7',
-  },
-  disabledButton: {
-    backgroundColor: '#888',
-    opacity: 0.7,
-  },
-  syncMessage: {
-    marginTop: 8,
-    textAlign: 'center',
-    fontSize: 14,
-  },
-  syncSuccess: {
-    color: '#4CAF50',
-  },
-  syncError: {
-    color: '#F44336',
-  },
-  syncHelper: {
-    marginTop: 8,
-    textAlign: 'center',
-    fontSize: 14,
-    color: '#888',
   },
 }); 

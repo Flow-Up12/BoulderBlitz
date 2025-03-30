@@ -69,14 +69,14 @@ export default function Layout() {
               <Stack.Screen 
                 name="index" 
                 options={{ 
-                  title: 'Rock Clicker',
+                  title: 'BoulderBlitz',
                   headerShown: false,
                 }} 
               />
               <Stack.Screen 
                 name="game" 
                 options={{ 
-                  title: 'Rock Clicker',
+                  title: 'BoulderBlitz',
                   headerShown: false,
                 }} 
               />

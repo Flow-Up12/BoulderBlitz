@@ -3,8 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { supabase } from '../lib/supabase/client';
 import { useAuth } from './AuthContext';
-import { debounce } from 'lodash';
 import { SoundManager } from '../utils/SoundManager';
+import debounce from 'lodash.debounce';
 
 // Game state types
 export type Rock = {
@@ -74,6 +74,14 @@ export type Ability = {
   multiplier: number; // Effect multiplier based on level
 };
 
+export type CoinAnimation = {
+  id: string;
+  amount: number;
+  x: number;
+  y: number;
+  timestamp: number;
+};
+
 export interface GameState {
   coins: number;
   totalCoinsEarned: number;
@@ -101,8 +109,10 @@ export interface GameState {
   soundEnabled: boolean; // Whether sound effects are enabled
   hapticsEnabled: boolean; // Whether haptic feedback is enabled
   _needsSave?: boolean; // Optional flag to trigger a save
+  _needsCloudSave?: boolean; // Optional flag to trigger a cloud save
   dataLoaded?: boolean; // Add this property
   version?: number; // Add version number for conflict resolution
+  coinAnimations?: CoinAnimation[]; // Add coin animations
 }
 
 // Default game state
@@ -662,13 +672,6 @@ const initialAchievements: Achievement[] = [
     reward: 300,
   },
   {
-    id: 'pickaxe-master',
-    name: 'Pickaxe Master',
-    description: 'Buy all pickaxes',
-    unlocked: false,
-    reward: 2000,
-  },
-  {
     id: 'automation-beginner',
     name: 'Automation Beginner',
     description: 'Own 5 auto miners in total',
@@ -831,6 +834,8 @@ export const initialState: GameState = {
 // Actions
 type GameAction =
   | { type: 'CLICK_ROCK' }
+  | { type: 'CLICK_ROCK_WITH_ANIMATION'; payload: { x: number, y: number } }
+  | { type: 'REMOVE_COIN_ANIMATION'; payload: string }
   | { type: 'BUY_UPGRADE'; payload: string }
   | { type: 'BUY_AUTO_MINER'; payload: string }
   | { type: 'BUY_SPECIAL_UPGRADE'; payload: string }
@@ -852,15 +857,19 @@ type GameAction =
   | { type: 'DEACTIVATE_ABILITY'; payload: string }
   | { type: 'UPGRADE_ABILITY'; payload: string }
   | { type: 'REBIRTH' }
-  | { type: 'AUTO_MINE'; payload: { coins: number, multiplier: number } };
+  | { type: 'AUTO_MINE'; payload: { coins: number, multiplier: number } }
+  | { type: 'AUTO_MINE_BACKGROUND'; payload: { coins: number, multiplier: number } };
 
-// Context setup
+// Create game context
+const GameContext = createContext<GameContextType | null>(null);
+
+// Simple version of GameContextType
 type GameContextType = {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
   isInitializing: boolean;
   databaseError: string | null;
-  saveGame: () => Promise<void>;
+  saveGame: (forceCloudSave?: boolean) => Promise<void>;
   loadGame: (forceReload?: boolean) => Promise<{
     success: boolean;
     message: string;
@@ -874,209 +883,606 @@ type GameContextType = {
   }>;
 };
 
-const GameContext = createContext<GameContextType | undefined>(undefined);
-
-// Helper function to calculate total CPC with all boosts, including active abilities
-const calculateTotalCPC = (state: GameState) => {
-  const pickaxeBonus = state.upgrades
-    .filter(u => u.owned && u.type === 'pickaxe')
-    .reduce((sum, u) => sum + u.cpcIncrease, 0);
-  
-  // Use the proper bonusMultiplier from rebirth instead of calculating
-  const rebirthMultiplier = state.bonusMultiplier;
-  
-  // Special upgrade bonuses
-  const doubleClickBonus = state.specialUpgrades.find(u => u.id === 'double-click')?.owned ? 2 : 1;
-  
-  // New equipment bonuses
-  const goldenGlovesBonus = state.specialUpgrades.find(u => u.id === 'golden-gloves')?.owned ? 1.25 : 1;
-  const cosmicDrillBonus = state.specialUpgrades.find(u => u.id === 'cosmic-drill')?.owned ? 3 : 1;
-  
-  // Apply cosmic drill effect to pickaxe bonus
-  const effectivePickaxeBonus = state.specialUpgrades.find(u => u.id === 'cosmic-drill')?.owned 
-    ? pickaxeBonus * cosmicDrillBonus 
-    : pickaxeBonus;
-  
-  // Check for active coin scatter ability
-  const coinScatterAbility = state.abilities.find(a => a.id === 'coin-scatter' && a.active);
-  const abilityMultiplier = coinScatterAbility ? coinScatterAbility.multiplier : 1;
-  
-  return (state.baseCpc + effectivePickaxeBonus) * rebirthMultiplier * doubleClickBonus * goldenGlovesBonus * abilityMultiplier;
+// Auto mining cache type
+type AutoMiningCache = {
+  multiplier: number;
+  batchedCoins: number;
+  lastUpdate: number;
+  intervalId: NodeJS.Timeout | null;
+  updateCount: number;
+  uiUpdateIntervalId: NodeJS.Timeout | null; // For UI updates
 };
 
-// Helper function to calculate total CPS from all auto miners, including active abilities
-const calculateTotalCPS = (state: GameState) => {
-  const baseAutoMinerOutput = state.autoMiners.reduce((sum, miner) => {
-    return sum + (miner.cps * miner.quantity);
-  }, 0);
-  
-  // Apply auto miner boost if the special upgrade is owned
-  const autoMinerBoost = state.specialUpgrades.find(u => u.id === 'auto-miner-boost')?.owned ? 1.5 : 1;
-  
-  // Apply miners-helmet boost if owned
-  const minersHelmetBoost = state.specialUpgrades.find(u => u.id === 'miners-helmet')?.owned ? 1.25 : 1;
-  
-  // Use the proper bonusMultiplier from rebirth instead of calculating
-  const rebirthMultiplier = state.bonusMultiplier;
-  
-  // Check for active miners frenzy ability
-  const minersFrenzyAbility = state.abilities.find(a => a.id === 'miners-frenzy' && a.active);
-  const abilityMultiplier = minersFrenzyAbility ? minersFrenzyAbility.multiplier : 1;
-  
-  return baseAutoMinerOutput * autoMinerBoost * minersHelmetBoost * rebirthMultiplier * abilityMultiplier;
-};
+// Provider props
+interface GameProviderProps {
+  children: React.ReactNode;
+}
 
-// Helper to check and update achievements
-const checkAchievements = (state: GameState): GameState => {
-  let updatedState = { ...state };
-  let achievementsUpdated = false;
+export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
+  const [state, dispatch] = useReducer(gameReducer, initialState);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [databaseError, setDatabaseError] = useState<string | null>(null);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const { authState } = useAuth();
   
-  // Helper to unlock an achievement if it's not already unlocked
-  const unlockAchievement = (id: string): boolean => {
-    const achievement = updatedState.achievements.find(a => a.id === id);
-    if (achievement && !achievement.unlocked) {
-      console.log(`Unlocking achievement: ${id} - ${achievement.name}`);
+  // Auto-mining cache to batch updates
+  const autoMiningCache = useRef<AutoMiningCache>({
+    multiplier: 1,
+    batchedCoins: 0,
+    lastUpdate: Date.now(),
+    intervalId: null,
+    updateCount: 0,
+    uiUpdateIntervalId: null
+  });
+
+  // Store the state in a ref to access the latest state in intervals without dependencies
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  // Setup UI update interval for smoother coin display
+  useEffect(() => {
+    if (dataLoaded && !autoMiningCache.current.uiUpdateIntervalId) {
+      // Create an interval that updates the UI more frequently than state changes
+      const id = setInterval(() => {
+        const currentState = stateRef.current;
+        
+        // If we have batched coins to display, update the UI
+        if (autoMiningCache.current.batchedCoins > 0) {
+          // Only dispatch if the amount is significant enough to notice
+          if (autoMiningCache.current.batchedCoins > currentState.cps / 10) {
+            dispatch({
+              type: 'AUTO_MINE',
+              payload: {
+                coins: autoMiningCache.current.batchedCoins,
+                multiplier: 1
+              }
+            });
+            
+            // Reset batched coins
+            autoMiningCache.current.batchedCoins = 0;
+          }
+        }
+      }, 50); // Update UI at 20fps for smoothness
       
-      // Play achievement sound
-      SoundManager.playSound('achievement', updatedState.soundEnabled);
+      autoMiningCache.current.uiUpdateIntervalId = id;
       
-      updatedState.achievements = updatedState.achievements.map(a => 
-        a.id === id ? { ...a, unlocked: true } : a
-      );
-      updatedState.coins += achievement.reward || 0;
-      updatedState.totalCoinsEarned += achievement.reward || 0;
-      return true;
+      return () => {
+        clearInterval(id);
+        autoMiningCache.current.uiUpdateIntervalId = null;
+      };
     }
-    return false;
+  }, [dataLoaded]);
+
+  // Improved auto mining setup with better performance
+  useEffect(() => {
+    if (dataLoaded && state.cps > 0 && !autoMiningCache.current.intervalId) {
+      console.log('Starting auto mining with CPS:', state.cps);
+      
+      const interval = setInterval(() => {
+        const now = Date.now();
+        const deltaTime = (now - autoMiningCache.current.lastUpdate) / 1000; // in seconds
+        const currentState = stateRef.current;
+        
+        // Calculate coins earned in this interval
+        const coinsEarned = currentState.cps * deltaTime * autoMiningCache.current.multiplier;
+        
+        // Add to batched coins for UI updates
+        autoMiningCache.current.batchedCoins += coinsEarned;
+        autoMiningCache.current.lastUpdate = now;
+        
+        // Increment update count
+        autoMiningCache.current.updateCount += 1;
+        
+        // Every 10 updates, trigger a state update for saving
+        if (autoMiningCache.current.updateCount >= 10) {
+          autoMiningCache.current.updateCount = 0;
+          
+          // Dispatch state update for saving purposes, but don't reset batched coins
+          // The UI update interval will handle displaying the coins
+          if (autoMiningCache.current.batchedCoins > 0) {
+            dispatch({
+              type: 'AUTO_MINE_BACKGROUND',
+              payload: {
+                coins: autoMiningCache.current.batchedCoins,
+                multiplier: 1
+              }
+            });
+          }
+        }
+      }, 500); // Run calculations every 500ms for efficiency
+      
+      autoMiningCache.current.intervalId = interval;
+      
+      return () => {
+        clearInterval(interval);
+        autoMiningCache.current.intervalId = null;
+      };
+    } else if (state.cps === 0 && autoMiningCache.current.intervalId) {
+      // Clear interval if CPS drops to 0
+      clearInterval(autoMiningCache.current.intervalId);
+      autoMiningCache.current.intervalId = null;
+    }
+  }, [dataLoaded, state.cps]);
+  
+  // When app is closing or component unmounts, save any batched coins
+  useEffect(() => {
+    return () => {
+      // Clean up timers when component unmounts
+      if (autoMiningCache.current.intervalId) {
+        clearInterval(autoMiningCache.current.intervalId);
+      }
+      
+      if (autoMiningCache.current.uiUpdateIntervalId) {
+        clearInterval(autoMiningCache.current.uiUpdateIntervalId);
+      }
+      
+      // Save any batched coins
+      if (autoMiningCache.current.batchedCoins > 0) {
+        const finalState = {
+          ...stateRef.current,
+          coins: stateRef.current.coins + autoMiningCache.current.batchedCoins,
+          totalCoinsEarned: stateRef.current.totalCoinsEarned + autoMiningCache.current.batchedCoins
+        };
+        
+        // Save the final state
+        AsyncStorage.setItem('gameState', JSON.stringify(finalState))
+          .catch(err => console.error('Error saving final state:', err));
+      }
+    };
+  }, []);
+
+  // Initialize sound manager with better error handling
+  useEffect(() => {
+    if (state.soundEnabled) {
+      // Initialize with retry mechanism
+      const loadWithRetry = async (retries = 3) => {
+        try {
+          await SoundManager.loadSounds();
+          console.log('All sounds loaded successfully');
+        } catch (error) {
+          console.warn(`Error loading sounds (attempt ${4-retries}/3):`, error);
+          if (retries > 0) {
+            console.log(`Retrying sound load in 1 second...`);
+            setTimeout(() => loadWithRetry(retries - 1), 1000);
+          } else {
+            console.error('Failed to load sounds after multiple attempts');
+          }
+        }
+      };
+      
+      loadWithRetry();
+    }
+  }, [state.soundEnabled]);
+
+  // Initialize or load saved game
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        // Load game data
+        const result = await loadGame();
+        
+        if (result.success) {
+          setDataLoaded(true);
+          console.log('Game data loaded successfully:', result.source);
+        } else {
+          console.error('Failed to load game data:', result.error);
+          // Still mark as loaded so the game can start
+          setDataLoaded(true);
+        }
+      } catch (error) {
+        console.error('Error during game initialization:', error);
+        // Fall back to initial state
+        dispatch({ type: 'LOAD_GAME', payload: { ...initialState, dataLoaded: true } });
+        setDataLoaded(true);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+    
+    initialize();
+    
+    return () => {
+      // Clean up timers when component unmounts
+      if (autoMiningCache.current.intervalId) {
+        clearInterval(autoMiningCache.current.intervalId);
+      }
+    };
+  }, []);
+  
+  // Create a debounced version of saveGame to prevent excessive saves
+  const debouncedSaveGame = useCallback(
+    debounce(() => {
+      if (dataLoaded && state._needsSave) {
+        saveGame();
+      }
+    }, 10000), // Increase to 10 seconds to reduce frequency
+    [dataLoaded, state._needsSave]
+  );
+  
+  // Create a highly debounced version for constant UI updates
+  const lightlySaveGame = useCallback(
+    debounce(() => {
+      if (dataLoaded) {
+        // Only save locally, skip cloud
+        const gameData = {
+          ...state,
+          lastSaved: Date.now(),
+          dataLoaded: true,
+          version: (state.version || 0) + 1
+        };
+        
+        AsyncStorage.setItem('gameState', JSON.stringify(gameData))
+          .catch(err => console.error('Error in light local save:', err));
+      }
+    }, 3000),
+    [dataLoaded, state]
+  );
+  
+  // Track important state changes
+  useEffect(() => {
+    if (state._needsSave && dataLoaded) {
+      debouncedSaveGame();
+    } else {
+      // For less important regular UI updates, just save locally
+      lightlySaveGame();
+    }
+  }, [state, dataLoaded, debouncedSaveGame, lightlySaveGame]);
+
+  // Monitor app state for background/foreground transitions
+  useEffect(() => {
+    // Only set up app state monitoring after data is loaded
+    if (!dataLoaded) return;
+    
+    const handleAppStateChange = async (nextAppState) => {
+      if (nextAppState === 'active') {
+        // App came to foreground - calculate offline progress
+        calculateOfflineProgress();
+      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // App went to background - save state fully including to cloud
+        console.log('App going to background - saving full state');
+        // Cancel any pending debounced saves
+        debouncedSaveGame.cancel();
+        lightlySaveGame.cancel();
+        // Force immediate save
+        await saveGame();
+      }
+    };
+    
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
+    return () => {
+      subscription.remove();
+    };
+  }, [dataLoaded, state, debouncedSaveGame, lightlySaveGame]);
+  
+  // Calculate offline progress when app reopens
+  const calculateOfflineProgress = () => {
+    if (!state.offlineProgressEnabled) {
+      return;
+    }
+    
+    const now = Date.now();
+    const offlineTime = now - state.lastSaved;
+    
+    // Only calculate if more than 1 minute has passed
+    if (offlineTime > 60 * 1000 && state.cps > 0) {
+      const secondsOffline = Math.floor(offlineTime / 1000);
+      const offlineCoins = state.cps * secondsOffline;
+      
+      // Dispatch action to add coins earned while offline
+      dispatch({
+        type: 'AUTO_MINE',
+        payload: {
+          coins: offlineCoins,
+          multiplier: 1
+        }
+      });
+      
+      // Display a notification here if needed
+      console.log(`Added ${offlineCoins} coins from offline progress`);
+    }
   };
   
-  // Click count achievements
-  if (updatedState.totalClicks >= 100) {
-    achievementsUpdated = unlockAchievement('clicker-novice') || achievementsUpdated;
-  }
-  if (updatedState.totalClicks >= 1000) {
-    achievementsUpdated = unlockAchievement('click-machine') || achievementsUpdated;
-  }
-  if (updatedState.totalClicks >= 10000) {
-    achievementsUpdated = unlockAchievement('click-addict') || achievementsUpdated;
-  }
-  if (updatedState.totalClicks >= 100000) {
-    achievementsUpdated = unlockAchievement('click-legend') || achievementsUpdated;
-  }
+  // Save game to AsyncStorage and optionally to Supabase
+  const saveGame = async (forceCloudSave = false) => {
+    // Only save if data has been loaded
+    if (!dataLoaded) {
+      console.log('Skipping save - game data not fully loaded yet');
+      return;
+    }
+
+    try {
+      console.log('Saving game data...');
+      
+      // Prepare data with timestamp and dataLoaded flag
+      const gameData = {
+        ...state,
+        lastSaved: Date.now(),
+        dataLoaded: true,
+        version: (state.version || 0) + 1 // Increment version with each save
+      };
+      
+      // First save locally
+      await AsyncStorage.setItem('gameState', JSON.stringify(gameData));
+      console.log(`Game saved locally with ${gameData.coins} coins`);
+      
+      // Only save to cloud if forced or for important events
+      const shouldSaveToCloud = forceCloudSave || 
+                             (state._needsCloudSave === true) || 
+                              state.rebirths > 0 || 
+                              state.goldCoins > 0;
+      
+      // Then save to Supabase if logged in AND we should save to cloud
+      if (authState.isAuthenticated && authState.user?.id && shouldSaveToCloud) {
+        try {
+          // console.log('Syncing to cloud storage...');
+          
+          // Check if a record already exists for this user
+          const { data, error } = await supabase
+            .from('game_states')
+            .select('id')
+            .eq('user_id', authState.user.id)
+            .single();
+            
+          if (error && error.code !== 'PGRST116') {  // PGRST116 is "not found" error
+            console.error('Error checking existing game state:', error);
+            setDatabaseError('Error checking cloud save status.');
+            return;
+          }
+          
+          if (data?.id) {
+            // Update existing record
+            // console.log('Updating existing cloud save');
+            const { error: updateError } = await supabase
+              .from('game_states')
+              .update({ 
+                game_data: gameData,
+                updated_at: new Date().toISOString()
+              })
+              .eq('user_id', authState.user.id);
+              
+            if (updateError) {
+              console.error('Error updating game state in database:', updateError);
+              setDatabaseError('Failed to save game to the cloud. Your progress is still saved locally.');
+            } else {
+              // console.log('Game saved to cloud successfully');
+              // Clear any previous error message
+              if (databaseError) setDatabaseError(null);
+            }
+          } else {
+            // Create new record
+            console.log('Creating new cloud save');
+            const { error: insertError } = await supabase
+              .from('game_states')
+              .insert([{
+                user_id: authState.user.id,
+                game_data: gameData
+              }]);
+              
+            if (insertError) {
+              console.error('Error inserting game state to database:', insertError);
+              setDatabaseError('Failed to create cloud save. Your progress is still saved locally.');
+            } else {
+              console.log('New cloud save created successfully');
+              // Clear any previous error message
+              if (databaseError) setDatabaseError(null);
+            }
+          }
+        } catch (dbError) {
+          console.error('Database error during save:', dbError);
+          setDatabaseError('Error connecting to the game server. Your progress is still saved locally.');
+        }
+      } else if (authState.isAuthenticated) {
+        console.log('Skipping cloud save - not necessary for this update');
+      }
+    } catch (error) {
+      console.error('Error saving game:', error);
+      setDatabaseError('Failed to save game. Please check your connection and try again.');
+    }
+  };
   
-  // Coin milestone achievements
-  if (updatedState.totalCoinsEarned >= 1000) {
-    achievementsUpdated = unlockAchievement('rock-enthusiast') || achievementsUpdated;
-  }
-  if (updatedState.totalCoinsEarned >= 10000) {
-    achievementsUpdated = unlockAchievement('small-savings') || achievementsUpdated;
-  }
-  if (updatedState.totalCoinsEarned >= 100000) {
-    achievementsUpdated = unlockAchievement('treasure-hoard') || achievementsUpdated;
-  }
-  if (updatedState.totalCoinsEarned >= 1000000) {
-    achievementsUpdated = unlockAchievement('millionaire') || achievementsUpdated;
-  }
-  if (updatedState.totalCoinsEarned >= 1000000000) {
-    achievementsUpdated = unlockAchievement('billionaire') || achievementsUpdated;
-    achievementsUpdated = unlockAchievement('master-miner') || achievementsUpdated;
-  }
+  // Load game data from AsyncStorage and optionally from Supabase
+  const loadGame = async (forceReload = false) => {
+    try {
+      console.log('Loading game data...');
+      let gameData = null;
+      let source = 'local';
+      
+      // First check for local saved data
+      try {
+        const savedData = await AsyncStorage.getItem('gameState');
+        
+        if (savedData) {
+          gameData = JSON.parse(savedData);
+          console.log(`Found local saved data with ${gameData.coins} coins`);
+          
+          // Mark that data is loaded
+          gameData.dataLoaded = true;
+        }
+      } catch (localError) {
+        console.error('Error reading from local storage:', localError);
+      }
+      
+      // Then load from cloud if authenticated and either forced or no local data
+      if (authState.isAuthenticated && authState.user?.id && (forceReload || !gameData)) {
+        try {
+          console.log('Attempting to load data from cloud...');
+          const { data, error } = await supabase
+            .from('game_states')
+            .select('*')
+            .eq('user_id', authState.user.id)
+            .single();
+            
+          if (error) {
+            console.log('Error loading cloud data:', error.message);
+            if (error.code !== 'PGRST116') { // PGRST116 is "not found" error which is normal for new users
+              setDatabaseError('Unable to load your saved game. Please try again later.');
+            }
+          } else if (data?.game_data) {
+            // We have cloud data
+            const cloudData = data.game_data;
+            console.log(`Found cloud data with ${cloudData.coins} coins`);
+
+            // Check if cloud data is more recent than local or if we have no local data
+            if (forceReload || !gameData || !gameData.lastSaved || cloudData.lastSaved > gameData.lastSaved) {
+              console.log('Using cloud data (newer or forced)');
+              gameData = cloudData;
+              source = 'cloud';
+              
+              // Update local storage with cloud data
+              try {
+                await AsyncStorage.setItem('gameState', JSON.stringify(cloudData));
+                console.log('Updated local storage with cloud data');
+              } catch (saveError) {
+                console.error('Error saving cloud data to local storage:', saveError);
+              }
+            }
+          }
+        } catch (cloudError) {
+          console.error('Error accessing cloud data:', cloudError);
+          setDatabaseError('Error connecting to the game server. Please check your connection.');
+        }
+      }
+      
+      // If we have data (either local or cloud), use it
+      if (gameData) {
+        console.log(`Using ${source} data to initialize game`);
+        // Ensure dataLoaded flag is set
+        gameData.dataLoaded = true;
+        
+        // Dispatch the loaded game data
+        dispatch({ type: 'LOAD_GAME', payload: gameData });
+        
+        return {
+          success: true,
+          message: `Game loaded from ${source} storage`,
+          source,
+        };
+      }
+      
+      // If we get here, we have no saved data at all
+      console.log('No saved data found, starting new game');
+      dispatch({ type: 'LOAD_GAME', payload: { ...initialState, dataLoaded: true } });
+      
+      return {
+        success: true,
+        message: 'New game started',
+        source: 'default',
+      };
+    } catch (error) {
+      console.error('Unexpected error loading game:', error);
+      
+      // Fall back to initial state
+      dispatch({ type: 'LOAD_GAME', payload: { ...initialState, dataLoaded: true } });
+      
+      return {
+        success: false,
+        message: 'Error loading game data',
+        error: error.message,
+      };
+    }
+  };
   
-  // Upgrade achievements
-  const ownedUpgrades = updatedState.upgrades.filter(u => u.owned).length;
-  if (ownedUpgrades >= 3) {
-    achievementsUpdated = unlockAchievement('pickaxe-collector') || achievementsUpdated;
-  }
-  if (ownedUpgrades >= 5) {
-    achievementsUpdated = unlockAchievement('upgrade-enthusiast') || achievementsUpdated;
-  }
-  if (ownedUpgrades === updatedState.upgrades.length) {
-    achievementsUpdated = unlockAchievement('pickaxe-master') || achievementsUpdated;
-  }
+  // Restart the game (e.g., when user wants to delete all progress)
+  const handleRestartGame = () => {
+    // Reset to initial state
+    dispatch({ type: 'LOAD_GAME', payload: { ...initialState, dataLoaded: true } });
+  };
   
-  // Auto-miner achievements
-  const hasAutoMiner = updatedState.autoMiners.some(m => m.owned);
-  if (hasAutoMiner) {
-    achievementsUpdated = unlockAchievement('auto-mining') || achievementsUpdated;
-  }
+  // Force sync game data across devices
+  const forceSyncData = async () => {
+    // Skip if not authenticated
+    if (!authState.isAuthenticated || !authState.user?.id) {
+      return {
+        success: false, 
+        message: 'You must be logged in to sync data across devices' 
+      };
+    }
+    
+    try {
+      console.log('Forcing data synchronization...');
+      
+      // First save current state to ensure it's up to date
+      await saveGame();
+      
+      // Then fetch cloud data
+      const { data, error } = await supabase
+        .from('game_states')
+        .select('*')
+        .eq('user_id', authState.user.id)
+        .single();
+        
+      if (error) {
+        console.error('Error fetching cloud data:', error);
+        return { 
+          success: false, 
+          message: 'Unable to access cloud data. Please try again later.'
+        };
+      }
+      
+      if (data?.game_data) {
+        // We have cloud data, use it if it's more recent
+        const cloudData = data.game_data;
+        
+        if (cloudData.lastSaved > state.lastSaved) {
+          // Cloud data is newer, load it
+          dispatch({ type: 'LOAD_GAME', payload: cloudData });
+          
+          // Also update local storage
+          await AsyncStorage.setItem('gameState', JSON.stringify(cloudData));
+          
+          return { 
+            success: true, 
+            message: 'Successfully loaded newer data from cloud!'
+          };
+        } else {
+          // Local data is newer or the same, push it to cloud
+          return { 
+            success: true, 
+            message: 'Your data is already up to date!'
+          };
+        }
+      } else {
+        // No cloud data exists yet, create it
+        return { 
+          success: true, 
+          message: 'Successfully uploaded your data to the cloud!'
+        };
+      }
+    } catch (error) {
+      console.error('Error during force sync:', error);
+      return {
+        success: false,
+        message: 'An error occurred during synchronization. Please try again.'
+      };
+    }
+  };
   
-  const totalMiners = updatedState.autoMiners.reduce((total, miner) => total + miner.quantity, 0);
-  if (totalMiners >= 5) {
-    achievementsUpdated = unlockAchievement('automation-beginner') || achievementsUpdated;
-  }
-  if (totalMiners >= 10) {
-    achievementsUpdated = unlockAchievement('mining-company') || achievementsUpdated;
-  }
-  if (totalMiners >= 50) {
-    achievementsUpdated = unlockAchievement('mining-corporation') || achievementsUpdated;
-  }
-  
-  // CPC achievements
-  if (updatedState.cpc >= 100) {
-    achievementsUpdated = unlockAchievement('speed-demon') || achievementsUpdated;
-  }
-  if (updatedState.cpc >= 1000) {
-    achievementsUpdated = unlockAchievement('clicking-god') || achievementsUpdated;
-  }
-  
-  // Special upgrade achievements
-  const hasSpecialUpgrade = updatedState.specialUpgrades.some(u => u.owned);
-  if (hasSpecialUpgrade) {
-    achievementsUpdated = unlockAchievement('special-collector') || achievementsUpdated;
-  }
-  
-  // Rock collection achievement
-  const allRocksUnlocked = updatedState.rocks.every(r => r.unlocked);
-  if (allRocksUnlocked) {
-    achievementsUpdated = unlockAchievement('rock-collection') || achievementsUpdated;
-  }
-  
-  // New achievement checks for abilities
-  const hasAnyAbility = updatedState.abilities.some(a => a.cost === 0);
-  if (hasAnyAbility) {
-    achievementsUpdated = unlockAchievement('ability-owner') || achievementsUpdated;
-  }
-  
-  const hasAllAbilities = updatedState.abilities.every(a => a.cost === 0);
-  if (hasAllAbilities) {
-    achievementsUpdated = unlockAchievement('ability-master') || achievementsUpdated;
-  }
-  
-  const hasHighLevelAbility = updatedState.abilities.some(a => a.level >= 3);
-  if (hasHighLevelAbility) {
-    achievementsUpdated = unlockAchievement('ability-upgrader') || achievementsUpdated;
-  }
-  
-  // Advanced miner achievements
-  const hasAdvancedMiner = updatedState.autoMiners.some(m => 
-    ['nano-miner', 'gravity-miner', 'time-miner', 'black-hole-miner'].includes(m.id) && m.quantity > 0
+  return (
+    <GameContext.Provider value={{ 
+      state, 
+      dispatch, 
+      isInitializing,
+      databaseError, 
+      saveGame,
+      loadGame,
+      handleRestartGame,
+      forceSyncData
+    }}>
+      {children}
+    </GameContext.Provider>
   );
-  if (hasAdvancedMiner) {
-    achievementsUpdated = unlockAchievement('advanced-miner') || achievementsUpdated;
+};
+
+// Hook to use the game context
+export const useGameContext = () => {
+  const context = useContext(GameContext);
+  if (context === null) {
+    throw new Error('useGameContext must be used within a GameProvider');
   }
-  
-  const hasBlackHoleMiner = updatedState.autoMiners.find(m => m.id === 'black-hole-miner')?.quantity > 0;
-  if (hasBlackHoleMiner) {
-    achievementsUpdated = unlockAchievement('black-hole-power') || achievementsUpdated;
-  }
-  
-  // Advanced pickaxe achievements
-  const hasLaserPickaxe = updatedState.upgrades.find(u => u.id === 'laser-pickaxe')?.owned;
-  if (hasLaserPickaxe) {
-    achievementsUpdated = unlockAchievement('laser-cutter') || achievementsUpdated;
-  }
-  
-  const hasQuantumDisruptor = updatedState.upgrades.find(u => u.id === 'quantum-disruptor')?.owned;
-  if (hasQuantumDisruptor) {
-    achievementsUpdated = unlockAchievement('quantum-power') || achievementsUpdated;
-  }
-  
-  // Trillionaire achievement
-  if (updatedState.totalCoinsEarned >= 1000000000000) { // 1 trillion
-    achievementsUpdated = unlockAchievement('trillionaire') || achievementsUpdated;
-  }
-  
-  return updatedState;
+  return context;
 };
 
 // Reducer function
@@ -1113,7 +1519,32 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         }
       }
       
-      let coinsToAdd = state.cpc * multiplier;
+      let coinsToAdd = state.cpc * multiplier + comboBonus;
+      const newTotalClicks = state.totalClicks + 1;
+      
+      // Fast path for normal clicks (most common case)
+      // Only check achievements on milestones to improve performance
+      if (newTotalClicks !== 1 && 
+          newTotalClicks !== 100 && 
+          newTotalClicks !== 1000 && 
+          newTotalClicks !== 10000 && 
+          newTotalClicks !== 100000 &&
+          state.totalCoinsEarned + coinsToAdd < 1000 &&
+          state.totalCoinsEarned < 10000 &&
+          state.totalCoinsEarned < 100000 &&
+          state.totalCoinsEarned < 1000000) {
+        
+        // Fast path - just update coins and click count
+        return {
+          ...state,
+          coins: state.coins + coinsToAdd,
+          totalCoinsEarned: state.totalCoinsEarned + coinsToAdd,
+          totalClicks: newTotalClicks,
+          clickProgress: newClickProgress,
+        };
+      }
+      
+      // Slow path - check for achievements
       
       // Check for first-click achievement
       const achievements = [...state.achievements];
@@ -1132,9 +1563,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ...state,
           coins: state.coins + coinsToAdd + (firstClickAchievement.reward || 0),
           totalCoinsEarned: state.totalCoinsEarned + coinsToAdd + (firstClickAchievement.reward || 0),
-          totalClicks: state.totalClicks + 1,
+          totalClicks: newTotalClicks,
           clickProgress: newClickProgress,
-          achievements: updatedAchievements
+          achievements: updatedAchievements,
+          _needsSave: true,
+          _needsCloudSave: true // This is a meaningful achievement, save to cloud
         };
         
         // Check for other achievements
@@ -1142,7 +1575,28 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       
       // Check for click count achievements
-      if (state.totalClicks + 1 === 1000) {
+      if (newTotalClicks === 100) {
+        const clickNoviceAchievement = achievements.find(a => a.id === 'clicker-novice');
+        if (clickNoviceAchievement && !clickNoviceAchievement.unlocked) {
+          const updatedAchievements = achievements.map(a => 
+            a.id === 'clicker-novice' ? { ...a, unlocked: true } : a
+          );
+          
+          const newState = {
+            ...state,
+            coins: state.coins + coinsToAdd + (clickNoviceAchievement.reward || 0),
+            totalCoinsEarned: state.totalCoinsEarned + coinsToAdd + (clickNoviceAchievement.reward || 0),
+            totalClicks: newTotalClicks,
+            clickProgress: newClickProgress,
+            achievements: updatedAchievements,
+            _needsSave: true
+          };
+          
+          return checkAchievements(newState);
+        }
+      }
+      
+      if (newTotalClicks === 1000) {
         const clickMachineAchievement = achievements.find(a => a.id === 'click-machine');
         if (clickMachineAchievement && !clickMachineAchievement.unlocked) {
           const updatedAchievements = achievements.map(a => 
@@ -1153,17 +1607,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             ...state,
             coins: state.coins + coinsToAdd + (clickMachineAchievement.reward || 0),
             totalCoinsEarned: state.totalCoinsEarned + coinsToAdd + (clickMachineAchievement.reward || 0),
-            totalClicks: state.totalClicks + 1,
+            totalClicks: newTotalClicks,
             clickProgress: newClickProgress,
-            achievements: updatedAchievements
+            achievements: updatedAchievements,
+            _needsSave: true,
+            _needsCloudSave: true // Milestone achievement, save to cloud
           };
           
-          // Check for other achievements
           return checkAchievements(newState);
         }
       }
       
-      if (state.totalClicks + 1 === 10000) {
+      if (newTotalClicks === 10000) {
         const clickAddictAchievement = achievements.find(a => a.id === 'click-addict');
         if (clickAddictAchievement && !clickAddictAchievement.unlocked) {
           const updatedAchievements = achievements.map(a => 
@@ -1174,27 +1629,173 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             ...state,
             coins: state.coins + coinsToAdd + (clickAddictAchievement.reward || 0),
             totalCoinsEarned: state.totalCoinsEarned + coinsToAdd + (clickAddictAchievement.reward || 0),
-            totalClicks: state.totalClicks + 1,
+            totalClicks: newTotalClicks,
             clickProgress: newClickProgress,
             achievements: updatedAchievements,
-            _needsSave: true // Only save on milestone achievements
+            _needsSave: true,
+            _needsCloudSave: true // Milestone achievement, save to cloud
           };
           
-          // Check for other achievements
           return checkAchievements(newState);
         }
       }
       
+      // Default case - no special achievements triggered
       const newState = {
         ...state,
         coins: state.coins + coinsToAdd,
         totalCoinsEarned: state.totalCoinsEarned + coinsToAdd,
-        totalClicks: state.totalClicks + 1,
+        totalClicks: newTotalClicks,
         clickProgress: newClickProgress,
+        _needsSave: newTotalClicks % 100 === 0 // Only save every 100 clicks
       };
       
-      // Check for achievements
-      return checkAchievements(newState);
+      // Check for coin milestone achievements less frequently
+      return newTotalClicks % 10 === 0 ? checkAchievements(newState) : newState;
+    }
+    
+    case 'CLICK_ROCK_WITH_ANIMATION': {
+      // First do the same calculation as normal click
+      let multiplier = 1;
+      
+      if (state.specialUpgrades.find(u => u.id === 'double-click' && u.owned)) {
+        multiplier *= 2;
+      }
+      
+      if (state.specialUpgrades.find(u => u.id === 'lucky-charm' && u.owned)) {
+        if (Math.random() < 0.1) {
+          multiplier *= 2;
+        }
+      }
+      
+      let comboBonus = 0;
+      let newClickProgress = state.clickProgress;
+      
+      if (state.specialUpgrades.find(u => u.id === 'click-combo' && u.owned)) {
+        newClickProgress = (state.clickProgress + 1) % 10;
+        if (newClickProgress === 0) {
+          comboBonus = state.cpc * 10;
+        }
+      }
+      
+      let coinsToAdd = state.cpc * multiplier + comboBonus;
+      const newTotalClicks = state.totalClicks + 1;
+      
+      // Create a coin animation at the click position
+      const newAnimation: CoinAnimation = {
+        id: `coin-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        amount: coinsToAdd,
+        x: action.payload.x,
+        y: action.payload.y,
+        timestamp: Date.now()
+      };
+      
+      // Add the animation to the list, limited to 10 animations for performance
+      const currentAnimations = state.coinAnimations || [];
+      const newAnimations = [
+        newAnimation,
+        ...currentAnimations.slice(0, 9) // Keep only 9 previous animations max
+      ];
+      
+      // Play click sound
+      SoundManager.playSound('click', state.soundEnabled);
+      
+      // Fast path for normal clicks (most common case)
+      if (newTotalClicks !== 1 && 
+          newTotalClicks !== 100 && 
+          newTotalClicks !== 1000 && 
+          newTotalClicks !== 10000 && 
+          newTotalClicks !== 100000) {
+        
+        return {
+          ...state,
+          coins: state.coins + coinsToAdd,
+          totalCoinsEarned: state.totalCoinsEarned + coinsToAdd,
+          totalClicks: newTotalClicks,
+          clickProgress: newClickProgress,
+          coinAnimations: newAnimations
+        };
+      }
+      
+      // If it's a milestone, use the original logic but add animations
+      // This is the slow path with achievement checks
+      const achievements = [...state.achievements];
+      
+      // First click achievement
+      if (state.totalClicks === 0) {
+        const firstClickAchievement = achievements.find(a => a.id === 'first-strike');
+        if (firstClickAchievement && !firstClickAchievement.unlocked) {
+          const updatedAchievements = achievements.map(a => 
+            a.id === 'first-strike' ? { ...a, unlocked: true } : a
+          );
+          
+          const newState = {
+            ...state,
+            coins: state.coins + coinsToAdd + (firstClickAchievement.reward || 0),
+            totalCoinsEarned: state.totalCoinsEarned + coinsToAdd + (firstClickAchievement.reward || 0),
+            totalClicks: newTotalClicks,
+            clickProgress: newClickProgress,
+            achievements: updatedAchievements,
+            coinAnimations: newAnimations,
+            _needsSave: true,
+            _needsCloudSave: true
+          };
+          
+          return checkAchievements(newState);
+        }
+      }
+      
+      // Other click milestones
+      if (newTotalClicks === 100 || newTotalClicks === 1000 || newTotalClicks === 10000) {
+        const achievementId = newTotalClicks === 100 ? 'clicker-novice' :
+                              newTotalClicks === 1000 ? 'click-machine' : 'click-addict';
+                              
+        const achievement = achievements.find(a => a.id === achievementId);
+        if (achievement && !achievement.unlocked) {
+          const updatedAchievements = achievements.map(a => 
+            a.id === achievementId ? { ...a, unlocked: true } : a
+          );
+          
+          const newState = {
+            ...state,
+            coins: state.coins + coinsToAdd + (achievement.reward || 0),
+            totalCoinsEarned: state.totalCoinsEarned + coinsToAdd + (achievement.reward || 0),
+            totalClicks: newTotalClicks,
+            clickProgress: newClickProgress,
+            achievements: updatedAchievements,
+            coinAnimations: newAnimations,
+            _needsSave: true,
+            _needsCloudSave: newTotalClicks >= 1000 // Only save big milestones to cloud
+          };
+          
+          return checkAchievements(newState);
+        }
+      }
+      
+      // Default case
+      const newState = {
+        ...state,
+        coins: state.coins + coinsToAdd,
+        totalCoinsEarned: state.totalCoinsEarned + coinsToAdd,
+        totalClicks: newTotalClicks,
+        clickProgress: newClickProgress,
+        coinAnimations: newAnimations,
+        _needsSave: newTotalClicks % 100 === 0
+      };
+      
+      return newTotalClicks % 10 === 0 ? checkAchievements(newState) : newState;
+    }
+    
+    case 'REMOVE_COIN_ANIMATION': {
+      // Remove a completed animation from the list
+      if (!state.coinAnimations || state.coinAnimations.length === 0) {
+        return state;
+      }
+      
+      return {
+        ...state,
+        coinAnimations: state.coinAnimations.filter(anim => anim.id !== action.payload)
+      };
     }
     
     case 'BUY_UPGRADE': {
@@ -1339,7 +1940,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             a.id === 'ability-master' 
               ? { ...a, unlocked: true, shown: false } 
               : a
-          ),
+          )
         };
       }
       
@@ -1831,1458 +2432,108 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
     
+    case 'AUTO_MINE_BACKGROUND': {
+      // Similar to AUTO_MINE but doesn't trigger achievement checks
+      // This is a performance optimization for background processing
+      const { coins, multiplier } = action.payload;
+      const coinsToAdd = coins * multiplier;
+      
+      // This doesn't update the UI directly (handled by the UI update interval)
+      // It just updates the internal state for saving purposes
+      return {
+        ...state,
+        coins: state.coins + coinsToAdd,
+        totalCoinsEarned: state.totalCoinsEarned + coinsToAdd,
+        _needsSave: state._needsSave // Don't change save flag
+      };
+    }
+    
     default:
       return state;
   }
 }
 
-// Provider component
-interface GameProviderProps {
-  children: React.ReactNode;
-}
-
-// Update the type for autoMiningCache
-type AutoMiningCache = {
-  multiplier: number;
-  batchedCoins: number;
-  lastUpdate: number;
-  intervalId: NodeJS.Timeout | null;
-  updateCount: number;
+// Helper function to calculate total CPC with all boosts, including active abilities
+const calculateTotalCPC = (state: GameState) => {
+  const pickaxeBonus = state.upgrades
+    .filter(u => u.owned && u.type === 'pickaxe')
+    .reduce((sum, u) => sum + u.cpcIncrease, 0);
+  
+  // Use the proper bonusMultiplier from rebirth instead of calculating
+  const rebirthMultiplier = state.bonusMultiplier;
+  
+  // Special upgrade bonuses
+  const doubleClickBonus = state.specialUpgrades.find(u => u.id === 'double-click')?.owned ? 2 : 1;
+  
+  // New equipment bonuses
+  const goldenGlovesBonus = state.specialUpgrades.find(u => u.id === 'golden-gloves')?.owned ? 1.25 : 1;
+  const cosmicDrillBonus = state.specialUpgrades.find(u => u.id === 'cosmic-drill')?.owned ? 3 : 1;
+  
+  // Apply cosmic drill effect to pickaxe bonus
+  const effectivePickaxeBonus = state.specialUpgrades.find(u => u.id === 'cosmic-drill')?.owned 
+    ? pickaxeBonus * cosmicDrillBonus 
+    : pickaxeBonus;
+  
+  // Check for active coin scatter ability
+  const coinScatterAbility = state.abilities.find(a => a.id === 'coin-scatter' && a.active);
+  const abilityMultiplier = coinScatterAbility ? coinScatterAbility.multiplier : 1;
+  
+  return (state.baseCpc + effectivePickaxeBonus) * rebirthMultiplier * doubleClickBonus * goldenGlovesBonus * abilityMultiplier;
 };
 
-export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
-  const [state, dispatch] = useReducer(gameReducer, initialState);
-  const { authState } = useAuth();
-  const [databaseError, setDatabaseError] = useState<string | null>(null);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [achievementNotifications, setAchievementNotifications] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+// Helper function to calculate total CPS from all auto miners, including active abilities
+const calculateTotalCPS = (state: GameState) => {
+  const baseAutoMinerOutput = state.autoMiners.reduce((sum, miner) => {
+    return sum + (miner.cps * miner.quantity);
+  }, 0);
   
-  // Update the type annotation for autoMiningCache
-  const autoMiningCache = useRef<AutoMiningCache>({
-    multiplier: 1,
-    batchedCoins: 0,
-    lastUpdate: 0,
-    intervalId: null,
-    updateCount: 0
-  });
+  // Apply auto miner boost if the special upgrade is owned
+  const autoMinerBoost = state.specialUpgrades.find(u => u.id === 'auto-miner-boost')?.owned ? 1.5 : 1;
   
-  // Optimize auto-mining for better performance
-  useEffect(() => {
-    // Skip if no auto miners are active
-    if (state.cps <= 0) {
-      return;
-    }
-    
-    // Initialize the auto mining cache
-    if (!autoMiningCache.current) {
-      autoMiningCache.current = {
-        lastUpdate: Date.now(),
-        batchedCoins: 0,
-        multiplier: 1,
-        intervalId: null,
-        updateCount: 0
-      };
-    }
-    
-      // Calculate multiplier only when CPS changes, not on every tick
-      let multiplier = 1;
-      
-      // Apply miners helmet effect if owned
-      if (state.specialUpgrades.find(u => u.id === 'miners-helmet' && u.owned)) {
-        multiplier *= 1.25;
-      }
-      
-      // Apply active ability multipliers
-      const activeAbilities = state.abilities.filter(a => a.active && a.effect === 'cps_multiplier');
-      for (const ability of activeAbilities) {
-        multiplier *= ability.multiplier;
-      }
-      
-      // Store the calculated multiplier in the cache
-      autoMiningCache.current.multiplier = multiplier;
-      
-      // Only start one interval if it doesn't exist
-      if (!autoMiningCache.current.intervalId) {
-        const intervalId = setInterval(() => {
-          const now = Date.now();
-          const deltaTime = now - autoMiningCache.current.lastUpdate;
-          autoMiningCache.current.lastUpdate = now;
-          
-          // Skip first iteration if lastUpdate is 0
-          if (deltaTime > 1000 || deltaTime <= 0) {
-            return;
-          }
-          
-          // Calculate coins to add for this tick
-          const secondFraction = deltaTime / 1000;
-          const tickCoins = state.cps * secondFraction;
-          
-          // Batch small amounts before dispatching to reduce renders
-          autoMiningCache.current.batchedCoins += tickCoins;
-        autoMiningCache.current.updateCount += 1;
-        
-        // Only dispatch after accumulating a significant amount, every 10 ticks, or after 500ms
-        if (autoMiningCache.current.batchedCoins >= state.cps / 2 || 
-            autoMiningCache.current.updateCount >= 10 ||
-            deltaTime >= 500) {
-            dispatch({ 
-              type: 'AUTO_MINE', 
-              payload: { 
-                coins: autoMiningCache.current.batchedCoins,
-                multiplier: autoMiningCache.current.multiplier
-              } 
-            });
-            // Reset the batch
-            autoMiningCache.current.batchedCoins = 0;
-          autoMiningCache.current.updateCount = 0;
-          }
-      }, 50); // 50ms interval for smoother increments
-        
-        autoMiningCache.current.intervalId = intervalId;
-        autoMiningCache.current.lastUpdate = Date.now();
-      }
-      
-      return () => {
-      if (autoMiningCache.current && autoMiningCache.current.intervalId) {
-          clearInterval(autoMiningCache.current.intervalId);
-          autoMiningCache.current.intervalId = null;
-          
-          // Dispatch any remaining batched coins
-          if (autoMiningCache.current.batchedCoins > 0) {
-            dispatch({ 
-              type: 'AUTO_MINE', 
-              payload: { 
-                coins: autoMiningCache.current.batchedCoins,
-                multiplier: autoMiningCache.current.multiplier
-              } 
-            });
-            autoMiningCache.current.batchedCoins = 0;
-          }
-        }
-      };
-  }, [state.cps, state.specialUpgrades, state.abilities]);
-
-  // Add a performance optimization for ability ticks - batch updates
-  const performAbilityTick = useCallback((seconds) => {
-    // Skip if no active abilities or cooldowns
-    const hasActiveOrCooldown = state.abilities.some(a => 
-      a.active || (a.cooldownRemaining && a.cooldownRemaining > 0)
-    );
-    
-    if (!hasActiveOrCooldown) return;
-    
-    dispatch({ type: 'ABILITY_TICK', payload: seconds });
-  }, [dispatch, state.abilities]);
+  // Apply miners-helmet boost if owned
+  const minersHelmetBoost = state.specialUpgrades.find(u => u.id === 'miners-helmet')?.owned ? 1.25 : 1;
   
-  // Modified initialization logic
-  useEffect(() => {
-    const initialize = async () => {
-      try {
-        // Initialize sounds
-        await SoundManager.loadSounds();
-
-        // Always try to load from local storage first
-        const result = await loadGame();
-        if (result.success) {
-          setDataLoaded(true);
-        } else {
-          // If load failed but we have auth, try one more time
-          if (authState.isAuthenticated && authState.user?.id) {
-            console.log('Initial load failed, retrying with forced reload');
-            const retryResult = await loadGame(true);
-            setDataLoaded(retryResult.success);
-          }
-        }
-      } catch (error) {
-        console.error('Error during initialization:', error);
-      } finally {
-        setIsInitializing(false);
-      }
-    };
-
-    initialize();
-  }, []);
-
-  // Reference for offline earnings notification
-  const offlineEarningsRef = useRef('');
-
-  // Function to calculate offline progress when user returns to game
-  const calculateOfflineProgress = () => {
-    // Skip if offline progress is not enabled or if user doesn't have the upgrade
-    if (!state.offlineProgressEnabled) {
-      console.log('Offline progress disabled, skipping');
-      return;
-    }
-    
-    const offlineUpgrade = state.specialUpgrades.find(u => u.id === 'offline-progress');
-    if (!offlineUpgrade?.owned) {
-      console.log('User does not have offline progress upgrade, skipping');
-      return;
-    }
-    
-    const now = Date.now();
-    const lastSaved = state.lastSaved || now;
-    const offlineTime = now - lastSaved;
-    
-    // Only calculate if last saved was more than 30 seconds ago
-    if (offlineTime < 30000) {
-      console.log('Last played less than 30 seconds ago, skipping offline progress');
-      return;
-    }
-    
-    console.log(`Calculating offline progress for ${offlineTime / 1000} seconds`);
-    
-    // Cap offline progress at 24 hours
-    const cappedOfflineTime = Math.min(offlineTime, 24 * 60 * 60 * 1000);
-    const offlineSeconds = cappedOfflineTime / 1000;
-    
-    // Calculate coins earned based on cps
-    const offlineCoins = Math.floor(state.cps * offlineSeconds);
-    
-    if (offlineCoins > 0) {
-      console.log(`Earned ${offlineCoins} coins while offline`);
-      
-      // Update the game state with the offline earnings
-      dispatch({
-        type: 'MERGE_GAME_DATA',
-        payload: {
-          ...state,  // Include the full state to satisfy GameState type
-          coins: state.coins + offlineCoins,
-          totalCoinsEarned: state.totalCoinsEarned + offlineCoins,
-          _needsSave: true
-        }
-      });
-      
-      // Store the notification text to show the user
-      offlineEarningsRef.current = `You earned ${offlineCoins.toLocaleString()} coins while away!`;
-    }
-  };
-
-  // Monitor app state to handle background/foreground transitions
-  useEffect(() => {
-    const handleAppStateChange = async (nextAppState) => {
-      if (nextAppState === 'active') {
-        console.log('App has come to the foreground, checking for updated data');
-        
-        // Only reload if we're authenticated (for cross-device sync)
-        if (authState.isAuthenticated && authState.user?.id) {
-          try {
-            // Check if there's newer data in the cloud before doing a full reload
-            const { data: cloudStateData, error: fetchError } = await supabase
-              .from('game_states')
-              .select('updated_at, game_data')
-              .eq('user_id', authState.user.id)
-              .limit(1)
-              .maybeSingle();
-              
-            if (!fetchError && cloudStateData?.game_data) {
-              // Parse cloud data to compare timestamps
-              try {
-                const cloudData = typeof cloudStateData.game_data === 'string'
-                  ? JSON.parse(cloudStateData.game_data)
-                  : cloudStateData.game_data;
-                
-                // Get local data to compare timestamps
-                const localDataStr = await AsyncStorage.getItem('gameState');
-                if (localDataStr) {
-                  const localData = JSON.parse(localDataStr);
-                  
-                  // If cloud data is newer, trigger a full reload
-                  if (cloudData.lastSaved > localData.lastSaved) {
-                    console.log('Detected newer cloud data, reloading game state');
-                    await loadGame(true);
-                  } else {
-                    // If local data is newer or same, calculate offline progress
-                    if (state.offlineProgressEnabled) {
-                      calculateOfflineProgress();
-                    }
-                  }
-                }
-              } catch (error) {
-                console.error('Error checking cloud data on resume:', error);
-              }
-            } else {
-              // If no cloud data, still calculate offline progress
-              if (state.offlineProgressEnabled) {
-                calculateOfflineProgress();
-              }
-            }
-          } catch (error) {
-            console.error('Error connecting to database on resume:', error);
-            // Still calculate offline progress on error
-            if (state.offlineProgressEnabled) {
-              calculateOfflineProgress();
-            }
-          }
-        } else {
-          // Not authenticated, just calculate offline progress
-          if (state.offlineProgressEnabled) {
-            calculateOfflineProgress();
-          }
-        }
-        
-        // Save current state when coming to foreground
-        if (dataLoaded && !isInitializing) {
-          saveGame();
-        }
-      } else if (nextAppState === 'background') {
-        // When going to background, save state
-        console.log('App going to background, saving game state');
-        if (dataLoaded && !isInitializing) {
-          saveGame();
-        }
-      }
-    };
-    
-    // Subscribe to app state changes
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    
-    return () => {
-      subscription.remove();
-    };
-  }, [authState.isAuthenticated, authState.user?.id, dataLoaded, isInitializing, state.offlineProgressEnabled]);
+  // Use the proper bonusMultiplier from rebirth instead of calculating
+  const rebirthMultiplier = state.bonusMultiplier;
   
-  // Handle game restart (for testing or after completing the game)
-  const handleRestartGame = () => {
-    // First confirm with the user
-    if (confirm('Are you sure you want to restart the game? All progress will be lost!')) {
-      // Reset to initial state
-      dispatch({ type: 'LOAD_GAME', payload: initialState });
-      
-      // Save the reset state
-      setTimeout(() => saveGame(), 500);
-      
-      // Show a confirmation message
-      alert('Game has been reset to the beginning. Good luck!');
-    }
-  };
+  // Check for active miners frenzy ability
+  const minersFrenzyAbility = state.abilities.find(a => a.id === 'miners-frenzy' && a.active);
+  const abilityMultiplier = minersFrenzyAbility ? minersFrenzyAbility.multiplier : 1;
   
-  // Save game data to AsyncStorage and optionally to Supabase
-  const saveGame = async () => {
-    // Don't save if data hasn't been loaded yet
-    if (!dataLoaded) {
-      console.log('Skipping save - data not fully loaded yet');
-      return;
-    }
+  return baseAutoMinerOutput * autoMinerBoost * minersHelmetBoost * rebirthMultiplier * abilityMultiplier;
+};
 
-    // Prevent multiple simultaneous saves
-    if (isSaving) {
-      console.log('Already saving game data, skipping this save');
-      return;
-    }
-    
-    // Don't save to database if we're initializing after login
-    if (isInitializing) {
-      console.log('Still initializing after login, skipping save to prevent data loss');
-      return;
-    }
-    
-    // Safety check - don't save empty data to database
-    if (state.coins === 0 && state.totalCoinsEarned === 0 && authState.isAuthenticated) {
-      // console.log('Preventing save of empty data to database');
-      // Check if we have cloud data before saving
-      try {
-        const { data: cloudStateData, error: fetchError } = await supabase
-          .from('game_states')
-          .select('game_data')
-          .eq('user_id', authState.user.id)
-          .limit(1)
-          .maybeSingle();
-          
-        if (!fetchError && cloudStateData?.game_data) {
-          // We have existing cloud data, don't overwrite with empty data
-          console.log('Found existing cloud data, skipping save of empty state');
-          return;
-        }
-      } catch (error) {
-        console.error('Error checking for cloud data before save:', error);
-      }
-    }
+// Helper to check and update achievements
+const checkAchievements = (state: GameState): GameState => {
+  // Check for total coins achievements
+  const coinMilestones = [
+    { id: 'small-fortune', coins: 1000 },
+    { id: 'getting-rich', coins: 10000 },
+    { id: 'money-bags', coins: 100000 },
+    { id: 'millionaire', coins: 1000000 },
+  ];
 
-    setIsSaving(true);
+  let achievementsUpdated = false;
+  let updatedAchievements = [...state.achievements];
 
-    try {
-      // Add a version number to track updates
-      const gameData = {
-        ...state,
-        lastSaved: Date.now(),
-        dataLoaded: true,
-        version: (state.version || 0) + 1, // Increment version with each save
-      };
-
-      const gameDataStr = JSON.stringify(gameData);
-
-      // Always save to AsyncStorage
-      await AsyncStorage.setItem('gameState', gameDataStr);
-      console.log(`Saved game to local storage at ${new Date().toISOString()} with coins: ${gameData.coins}, version: ${gameData.version}`);
-
-      // If user is logged in, also save to Supabase
-      if (authState.isAuthenticated && authState.user?.id) {
-        try {
-          // Check if a game state already exists for this user
-          const { data: existingState, error: fetchError } = await supabase
-            .from('game_states')
-            .select('id, updated_at, game_data')
-            .eq('user_id', authState.user.id)
-            .limit(1)
-            .maybeSingle();
-
-          if (fetchError) {
-            console.error('Error checking existing game state:', fetchError);
-            return;
-          }
-
-          if (existingState) {
-            // Check for version conflicts with cloud data
-              try {
-                const cloudData = typeof existingState.game_data === 'string'
-                  ? JSON.parse(existingState.game_data)
-                  : existingState.game_data;
-                
-              const cloudVersion = cloudData.version || 0;
-              const localVersion = gameData.version || 0;
-              
-              // If cloud data is a newer version, merge instead of overwriting
-              if (cloudVersion > localVersion) {
-                // console.log(`Cloud version (${cloudVersion}) is newer than local version (${localVersion}), merging data...`);
-                  const mergedData = mergeGameData(gameData, cloudData);
-                mergedData.version = Math.max(cloudVersion, localVersion) + 1; // Set version to highest + 1
-                
-                // Update local state with merged data
-                dispatch({ type: 'LOAD_GAME', payload: mergedData });
-                
-                // Update AsyncStorage with merged data
-                const mergedDataStr = JSON.stringify(mergedData);
-                await AsyncStorage.setItem('gameState', mergedDataStr);
-                
-                // Update cloud with merged data
-                  const { error: updateError } = await supabase
-                    .from('game_states')
-                    .update({ 
-                    game_data: mergedDataStr,
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', existingState.id);
-
-                  if (updateError) {
-                  console.error('Error updating cloud with merged data:', updateError);
-                  } else {
-                  console.log('Successfully synchronized data across devices (version: ' + mergedData.version + ')');
-                  }
-                  return;
-                }
-              } catch (parseError) {
-              console.error('Error processing cloud data for version check:', parseError);
-            }
-            
-            // Normal update if no version conflicts
-            const { error: updateError } = await supabase
-              .from('game_states')
-              .update({ 
-                game_data: gameDataStr,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', existingState.id);
-
-            if (updateError) {
-              console.error('Error updating game state:', updateError);
-              // Don't try database operations again if we get an RLS error
-              if (updateError.code === '42501') {
-                console.log('Security policy error detected, stopping database operations');
-                return;
-              }
-            } else {
-              console.log(`Successfully updated cloud game state (version: ${gameData.version})`);
-            }
-          } else {
-            // Insert new record
-            const { error: insertError } = await supabase
-              .from('game_states')
-              .insert([{ 
-                user_id: authState.user.id,
-                game_data: gameDataStr
-              }]);
-
-            if (insertError) {
-              console.error('Error inserting game state:', insertError);
-              // Don't try database operations again if we get an RLS error
-              if (insertError.code === '42501') {
-                console.log('Security policy error detected, stopping database operations');
-                return;
-              }
-            } else {
-              console.log(`Successfully created new cloud game state (version: ${gameData.version})`);
-            }
-          }
-        } catch (error) {
-          console.error('Error saving to Supabase:', error);
-        }
-      }
-    } catch (error) {
-      console.error('Error saving game data:', error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  // Add debounced save callback here, after saveGame is defined
-  const debouncedSaveGame = useCallback(
-    debounce(async () => {
-      await saveGame();
-    }, 3000), // 3 second delay before saving
-    [saveGame]
-  );
-  
-  // Trigger debounced save when _needsSave flag is set
-  useEffect(() => {
-    if (state._needsSave) {
-      // console.log('State marked for saving, scheduling save');
-      debouncedSaveGame();
-    }
-  }, [state._needsSave]);
-  
-  // Load game data from AsyncStorage and optionally from Supabase
-  const loadGame = useCallback(async (forceReload = false) => {
-    if (!forceReload && dataLoaded) {
-      console.log('Game data already loaded, skipping load');
-      return { success: true, message: 'Game data already loaded', source: 'cache' };
-    }
-
-    setIsLoading(true);
-
-    try {
-      console.log('Loading game data...');
-      
-      // Set a reasonable timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Loading game data timed out')), 10000)
+  // Check each coin milestone
+  coinMilestones.forEach(milestone => {
+    const achievement = updatedAchievements.find(a => a.id === milestone.id);
+    if (achievement && !achievement.unlocked && state.totalCoinsEarned >= milestone.coins) {
+      updatedAchievements = updatedAchievements.map(a => 
+        a.id === milestone.id ? { ...a, unlocked: true } : a
       );
-      
-      // First try to load from localStorage
-      let gameData = null;
-      let source = 'local';
-      
-      try {
-        const localDataStr = await Promise.race([
-          AsyncStorage.getItem('gameState'),
-          timeoutPromise
-        ]);
-        
-        if (localDataStr) {
-          gameData = JSON.parse(localDataStr);
-          console.log(`Loaded game data from local storage with ${gameData.coins} coins`);
-        }
-      } catch (localError) {
-        console.error('Error loading from local storage:', localError);
-      }
+      achievementsUpdated = true;
+    }
+  });
 
-      // If user is authenticated AND forceReload is true (explicitly requested), try to load from Supabase
-      // This ensures we only load from the database when explicitly requested
-      if (forceReload && authState.isAuthenticated && authState.user?.id) {
-        try {
-          const { data: cloudState, error: fetchError } = await supabase
-            .from('game_states')
-            .select('game_data')
-            .eq('user_id', authState.user.id)
-            .limit(1)
-            .maybeSingle();
-
-          if (fetchError) {
-            console.error('Error fetching game data from database:', fetchError);
-            setDatabaseError('Error connecting to database. Please set up the database or continue without saving.');
-          } else if (cloudState?.game_data) {
-            let cloudData;
-            
-            // Parse cloud data
-            try {
-              cloudData = typeof cloudState.game_data === 'string'
-                ? JSON.parse(cloudState.game_data)
-                : cloudState.game_data;
-            } catch (parseError) {
-              console.error('Error parsing cloud data:', parseError);
-              // Continue with local data if parsing fails
-            }
-            
-            if (cloudData) {
-              // Only use cloud data if explicitly requested via forceReload
-              gameData = cloudData;
-              source = 'cloud';
-              console.log('Explicitly loading cloud data as requested');
-            }
-          }
-        } catch (cloudError) {
-          console.error('Error accessing cloud data:', cloudError);
-        }
-      }
-
-      // If we have data, load it
-      if (gameData) {
-        // Apply merge with current state if needed
-        const finalState = gameData;
-        finalState.dataLoaded = true;
-        
-        // Load the data into the state
-        dispatch({ type: 'LOAD_GAME', payload: finalState });
-        
-        setIsLoading(false);
-        console.log(`Loaded game data from ${source} with ${finalState.coins} coins`);
-        return { success: true, message: `Loaded game data from ${source}`, source };
-      } else {
-        console.log('No saved game data found, using initial state');
-        
-        // Load initial state
-        dispatch({ type: 'LOAD_GAME', payload: { ...initialState, dataLoaded: true } });
-        
-        setIsLoading(false);
-        return { success: true, message: 'Using initial state', source: 'initial' };
-      }
-    } catch (error) {
-      console.error('Error in loadGame function:', error);
-      setIsLoading(false);
-      
-      // Even on error, mark data as loaded to prevent UI hanging
-      dispatch({ type: 'LOAD_GAME', payload: { ...initialState, dataLoaded: true } });
-      
-      return { 
-        success: false, 
-        message: 'Error loading game data', 
-        error: error instanceof Error ? error.message : String(error) 
-      };
-    }
-  }, [isLoading, dataLoaded, state._needsSave, authState.isAuthenticated, authState.user?.id]);
-  
-  // Create a better debounced version with a longer delay to prevent frequent calls
-  const debouncedLoadGame = useCallback(
-    debounce(async (forceReload = false) => {
-      await loadGame(forceReload);
-    }, 1000), // Increased from 500ms to 1000ms
-    [loadGame]
-  );
-
-  // Handle logout and login properly
-  useEffect(() => {
-    // When user logs in after being logged out
-    if (authState.isAuthenticated && !authState.wasAuthenticated) {
-      console.log('User logged in, checking for data across devices...');
-      
-      // Set a flag to prevent auto-saving during this initial load
-      setIsInitializing(true);
-      
-      // Force load cloud data with higher priority
-      setTimeout(async () => {
-        try {
-          // First check if there's cloud data for this user
-          const { data: cloudStateData, error: fetchError } = await supabase
-            .from('game_states')
-            .select('game_data, updated_at')
-            .eq('user_id', authState.user.id)
-            .limit(1)
-            .maybeSingle();
-            
-          // Also check local storage
-          const localDataStr = await AsyncStorage.getItem('gameState');
-          let localData = null;
-          
-          if (localDataStr) {
-            try {
-              localData = JSON.parse(localDataStr);
-              console.log('Found local data:', {
-                coins: localData.coins, 
-                version: localData.version || 0,
-                lastSaved: new Date(localData.lastSaved).toISOString()
-              });
-            } catch (error) {
-              console.error('Error parsing local data:', error);
-            }
-          }
-          
-          if (!fetchError && cloudStateData?.game_data) {
-            // We have cloud data, parse and examine it
-            const cloudData = typeof cloudStateData.game_data === 'string'
-              ? JSON.parse(cloudStateData.game_data)
-              : cloudStateData.game_data;
-            
-            console.log('Found cloud data:', { 
-              coins: cloudData.coins, 
-              version: cloudData.version || 0,
-              lastSaved: cloudData.lastSaved ? new Date(cloudData.lastSaved).toISOString() : 'unknown'
-            });
-              
-            // We have both cloud and local data, need to decide which to use
-            if (localData) {
-              const cloudVersion = cloudData.version || 0;
-              const localVersion = localData.version || 0;
-              
-              // If local version is higher, we have local changes not in the cloud
-              if (localVersion > cloudVersion) {
-                console.log(`Local version (${localVersion}) is newer than cloud (${cloudVersion}), syncing up...`);
-                // Create merged state with local version taking priority
-                const mergedData = mergeGameData(cloudData, localData);
-                mergedData.version = localVersion; // Keep the higher version number
-                
-                // Apply merged data
-                dispatch({ type: 'LOAD_GAME', payload: mergedData });
-                setDataLoaded(true);
-                
-                // Update cloud with our local changes
-                const mergedDataStr = JSON.stringify(mergedData);
-                
-                try {
-                  const { error: updateError } = await supabase
-                    .from('game_states')
-                    .update({ 
-                      game_data: mergedDataStr,
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('user_id', authState.user.id);
-                    
-                  if (updateError) {
-                    console.error('Error syncing local changes to cloud:', updateError);
-                  } else {
-                    console.log('Successfully synced local changes to cloud');
-                  }
-                } catch (error) {
-                  console.error('Error during cloud update:', error);
-                }
-              } else {
-                // Cloud version is newer or equal, use it
-                console.log(`Cloud version (${cloudVersion}) is newer or equal to local (${localVersion}), using cloud data`);
-                
-                // If versions are equal but data differs, merge them
-                if (cloudVersion === localVersion && (cloudData.coins !== localData.coins || cloudData.totalCoinsEarned !== localData.totalCoinsEarned)) {
-                  console.log('Same version but different data, merging...');
-                  const mergedData = mergeGameData(cloudData, localData);
-                  mergedData.version = cloudVersion + 1; // Increment version after merge
-                  
-                  // Apply merged data
-                  dispatch({ type: 'LOAD_GAME', payload: mergedData });
-                  setDataLoaded(true);
-                  
-                  // Update both local and cloud storage
-                  const mergedDataStr = JSON.stringify(mergedData);
-                  await AsyncStorage.setItem('gameState', mergedDataStr);
-                  
-                  try {
-                    const { error: updateError } = await supabase
-                      .from('game_states')
-                      .update({ 
-                        game_data: mergedDataStr,
-                        updated_at: new Date().toISOString()
-                      })
-                      .eq('user_id', authState.user.id);
-                      
-                    if (updateError) {
-                      console.error('Error updating cloud with merged data:', updateError);
-                    } else {
-                      console.log('Successfully synchronized merged data to cloud');
-                    }
-                  } catch (error) {
-                    console.error('Error updating cloud:', error);
-                  }
-                } else {
-                  // Simple case - cloud version is newer, use it directly
-                  dispatch({ type: 'LOAD_GAME', payload: cloudData });
-                  setDataLoaded(true);
-                  
-                  // Update local storage with cloud data
-                  await AsyncStorage.setItem('gameState', JSON.stringify(cloudData));
-                  console.log('Applied cloud data to local state');
-                }
-              }
-            } else {
-              // Only have cloud data, use it directly
-              dispatch({ type: 'LOAD_GAME', payload: cloudData });
-              setDataLoaded(true);
-              
-              // Update local storage
-              await AsyncStorage.setItem('gameState', JSON.stringify(cloudData));
-              console.log('No local data, applied cloud data');
-            }
-          } else if (localData) {
-            // Only have local data, use it and sync to cloud
-            console.log('No cloud data found, using local data and syncing to cloud');
-            
-            dispatch({ type: 'LOAD_GAME', payload: localData });
-            setDataLoaded(true);
-            
-            // Sync local data to cloud
-            try {
-              const { error: insertError } = await supabase
-                .from('game_states')
-                .insert([{ 
-                  user_id: authState.user.id,
-                  game_data: JSON.stringify({
-                    ...localData,
-                    version: (localData.version || 0) + 1 // Increment version when syncing to cloud
-                  })
-                }]);
-                
-              if (insertError) {
-                console.error('Error syncing local data to cloud:', insertError);
-              } else {
-                console.log('Successfully synced local data to cloud');
-              }
-            } catch (error) {
-              console.error('Error during cloud insert:', error);
-            }
-          } else {
-            // No data anywhere, start fresh
-            console.log('No existing data found, starting fresh');
-            dispatch({ type: 'LOAD_GAME', payload: { ...initialState, dataLoaded: true } });
-            setDataLoaded(true);
-          }
-        } catch (error) {
-          console.error('Error during login data sync:', error);
-          
-          // Fallback to local data if available
-          try {
-            const localDataStr = await AsyncStorage.getItem('gameState');
-            if (localDataStr) {
-              const localData = JSON.parse(localDataStr);
-              dispatch({ type: 'LOAD_GAME', payload: localData });
-              setDataLoaded(true);
-              console.log('Error accessing cloud, fallback to local data');
-            } else {
-              // Nothing available, start fresh
-              dispatch({ type: 'LOAD_GAME', payload: { ...initialState, dataLoaded: true } });
-              setDataLoaded(true);
-            }
-          } catch (localError) {
-            console.error('Error accessing local storage:', localError);
-            dispatch({ type: 'LOAD_GAME', payload: { ...initialState, dataLoaded: true } });
-            setDataLoaded(true);
-          }
-        } finally {
-      setIsInitializing(false);
-    }
-      }, 1000); // Slight delay to ensure auth is established
-    }
-    
-    // When user logs out
-    if (authState.wasAuthenticated && !authState.isAuthenticated) {
-      console.log('User logged out, saving state to local storage only');
-      
-      try {
-        // Only save to local storage when logging out, never to the database
-        const gameDataStr = JSON.stringify({
-          ...state,
-          lastSaved: Date.now(),
-          dataLoaded: true,
-          version: (state.version || 0) + 1 // Increment version on logout to track changes
-        });
-        
-        // Keep local data for offline play
-        AsyncStorage.setItem('gameState', gameDataStr)
-          .then(() => console.log('Game state saved locally before logout'))
-          .catch(err => console.error('Error saving game state before logout:', err));
-      } catch (error) {
-        console.error('Error during logout cleanup:', error);
-      }
-    }
-  }, [authState.isAuthenticated, authState.wasAuthenticated, authState.user?.id]);
-  
-  // Periodically check for achievements that might have been missed
-  useEffect(() => {
-    // Check achievements every 5 seconds
-    const achievementCheckInterval = setInterval(() => {
-      // Create a copy of the current state to check
-      const updatedState = checkAchievements(state);
-      
-      // If achievements were updated, dispatch the new state
-      if (JSON.stringify(updatedState.achievements) !== JSON.stringify(state.achievements)) {
-        console.log('Periodic achievement check found new achievements');
-        dispatch({
-          type: 'MERGE_GAME_DATA',
-          payload: updatedState
-        });
-      }
-    }, 5000);
-    
-    return () => clearInterval(achievementCheckInterval);
-  }, [state]);
-  
-  // Add to the useEffect section that checks for achievements
-  useEffect(() => {
-    // Find all newly unlocked achievements that haven't been shown yet
-    const newlyUnlockedAchievements = state.achievements.filter(
-      a => a.unlocked && !achievementNotifications.includes(a.id)
-    );
-    
-    if (newlyUnlockedAchievements.length > 0) {
-      // Add these achievement IDs to our notification tracking
-      setAchievementNotifications(prev => [
-        ...prev, 
-        ...newlyUnlockedAchievements.map(a => a.id)
-      ]);
-      
-      // Dispatch achievement unlocked events with slight delay between them
-      newlyUnlockedAchievements.forEach((achievement, index) => {
-        setTimeout(() => {
-          dispatch({ 
-            type: 'UNLOCK_ACHIEVEMENT', 
-            payload: achievement.id
-          });
-        }, index * 500); // Stagger notifications
-      });
-    }
-  }, [state.achievements]);
-  
-  // Make the context value
-  const contextValue: GameContextType = {
-    state,
-    dispatch,
-    loadGame: debouncedLoadGame,
-    saveGame,
-    databaseError,
-    isInitializing,
-    handleRestartGame,
-    forceSyncData: async () => {
-      // Skip if not authenticated
-      if (!authState.isAuthenticated || !authState.user?.id) {
-        console.log('Cannot sync - not authenticated');
-        return { 
-          success: false, 
-          message: 'You must be logged in to sync data across devices' 
-        };
-      }
-      
-      // Set temporary flag to prevent auto-saving during sync
-      setIsSaving(true);
-      
-      try {
-        console.log('Forcing cross-device data synchronization...');
-        
-        // Check for cloud data
-        const { data: cloudStateData, error: fetchError } = await supabase
-          .from('game_states')
-          .select('game_data, updated_at')
-          .eq('user_id', authState.user.id)
-          .limit(1)
-          .maybeSingle();
-        
-        if (fetchError) {
-          console.error('Error fetching cloud data:', fetchError);
-          return { 
-            success: false, 
-            message: 'Unable to access cloud data. Please try again later.'
-          };
-        }
-        
-        // Get latest local data from AsyncStorage
-        const localDataStr = await AsyncStorage.getItem('gameState');
-        let localData = null;
-        
-        if (localDataStr) {
-          try {
-            localData = JSON.parse(localDataStr);
-          } catch (error) {
-            console.error('Error parsing local data:', error);
-          }
-        }
-        
-        // Merge current state, local storage, and cloud data
-        let finalData;
-        
-        if (cloudStateData?.game_data) {
-          // Parse cloud data
-          const cloudData = typeof cloudStateData.game_data === 'string'
-            ? JSON.parse(cloudStateData.game_data)
-            : cloudStateData.game_data;
-          
-          console.log('Performing 3-way merge between state, local storage, and cloud');
-          
-          // First merge local and state
-          const localMerged = localData ? mergeGameData(state, localData) : state;
-          
-          // Then merge with cloud
-          finalData = mergeGameData(localMerged, cloudData);
-          
-          // Set a new version higher than any current version
-          finalData.version = Math.max(
-            state.version || 0,
-            localData?.version || 0,
-            cloudData?.version || 0
-          ) + 1;
-        } else if (localData) {
-          // Only have local data to sync with
-          console.log('No cloud data, merging state with local storage');
-          finalData = mergeGameData(state, localData);
-          finalData.version = Math.max(state.version || 0, localData.version || 0) + 1;
-        } else {
-          // Only have current state
-          console.log('No cloud or local storage data found, using current state');
-          finalData = { 
-            ...state,
-            version: (state.version || 0) + 1,
-            lastSaved: Date.now()
-          };
-        }
-        
-        // Apply the merged data locally first
-        dispatch({ type: 'LOAD_GAME', payload: finalData });
-        
-        // Update local storage
-        await AsyncStorage.setItem('gameState', JSON.stringify(finalData));
-        
-        // Sync to cloud
-        const finalDataStr = JSON.stringify(finalData);
-        
-        if (cloudStateData) {
-          // Update existing cloud data
-          const { error: updateError } = await supabase
-            .from('game_states')
-            .update({ 
-              game_data: finalDataStr,
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', authState.user.id);
-          
-          if (updateError) {
-            console.error('Error updating cloud data:', updateError);
-            return { 
-              success: false, 
-              message: 'Data synced locally but failed to update cloud. Your progress is safe.'
-            };
-          }
-        } else {
-          // Create new cloud record
-          const { error: insertError } = await supabase
-            .from('game_states')
-            .insert([{ 
-              user_id: authState.user.id,
-              game_data: finalDataStr
-            }]);
-          
-          if (insertError) {
-            console.error('Error creating cloud data:', insertError);
-            return { 
-              success: false, 
-              message: 'Data synced locally but failed to create cloud record. Your progress is safe.'
-            };
-          }
-        }
-        
-        console.log(`Force sync complete (version: ${finalData.version}), data synchronized across devices`);
-        
-        return { 
-          success: true, 
-          message: 'Successfully synchronized data across all your devices!' 
-        };
-      } catch (error) {
-        console.error('Error during force sync:', error);
-        return { 
-          success: false, 
-          message: 'An error occurred during synchronization. Please try again.'
-        };
-      } finally {
-        setIsSaving(false);
-      }
-    },
-  };
-  
-  // Add a ref to track the auto-tap interval
-  const autoTapRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Create effect to handle auto-tap ability
-  useEffect(() => {
-    // Check if auto-tap ability is active
-    const autoTapAbility = state.abilities.find(a => a.id === 'auto-tap' && a.active);
-    
-    // Clean up any existing interval
-    if (autoTapRef.current) {
-      clearInterval(autoTapRef.current);
-      autoTapRef.current = null;
-    }
-    
-    // If auto-tap is active, start clicking at the ability's rate
-    if (autoTapAbility) {
-      const clicksPerSecond = autoTapAbility.multiplier;
-      const intervalDelay = Math.floor(1000 / clicksPerSecond);
-      
-      autoTapRef.current = setInterval(() => {
-        // Simulate clicking by dispatching CLICK_ROCK action
-        dispatch({ type: 'CLICK_ROCK' });
-      }, intervalDelay);
-    }
-    
-    // Clean up when component unmounts or ability deactivates
-    return () => {
-      if (autoTapRef.current) {
-        clearInterval(autoTapRef.current);
-        autoTapRef.current = null;
-      }
+  if (achievementsUpdated) {
+    return {
+      ...state,
+      achievements: updatedAchievements,
+      _needsSave: true
     };
-  }, [state.abilities, dispatch]);
-  
-  // Improved logic for merging game data with conflict resolution
-  const mergeGameData = (localData, cloudData) => {
-    console.log(`Merging data: Local (ver=${localData?.version || 0}, coins=${localData?.coins || 0}) with Cloud (ver=${cloudData?.version || 0}, coins=${cloudData?.coins || 0})`);
-    
-    // Ensure we're working with valid data objects
-    if (!localData || typeof localData !== 'object') {
-      console.log('Invalid local data, using cloud data only');
-      return { ...cloudData, lastSaved: Date.now() };
-    }
-    
-    if (!cloudData || typeof cloudData !== 'object') {
-      console.log('Invalid cloud data, using local data only');
-      return { ...localData, lastSaved: Date.now() };
-    }
-    
-    // Get versions for comparison
-    const localVersion = localData.version || 0;
-    const cloudVersion = cloudData.version || 0;
-    
-    // Start with the newer data as the base
-    // But ALWAYS prioritize active player state over stored data
-    let baseData;
-    let otherData;
-    
-    // Special priority for rebirth mechanics and active game state
-    const isActiveLocalState = localData._needsSave || 
-                              (Date.now() - (localData.lastSaved || 0) < 60000); // If saved less than 1 minute ago
-    
-    if (isActiveLocalState) {
-      console.log('Detected active local game state, prioritizing local changes');
-      baseData = { ...localData };
-      otherData = cloudData;
-    } else if (localVersion >= cloudVersion) {
-      console.log('Local version is newer or equal, using local as base');
-      baseData = { ...localData };
-      otherData = cloudData;
-    } else {
-      console.log('Cloud version is newer, using cloud as base');
-      baseData = { ...cloudData };
-      otherData = localData;
-    }
-    
-    // Make a deep copy to avoid mutation issues
-    baseData = JSON.parse(JSON.stringify(baseData));
-    
-    // NUMERICAL VALUES: Always take the maximum value to ensure progress isn't lost
-    baseData.coins = Math.max(localData.coins || 0, cloudData.coins || 0);
-    baseData.totalCoinsEarned = Math.max(localData.totalCoinsEarned || 0, cloudData.totalCoinsEarned || 0);
-    baseData.goldCoins = Math.max(localData.goldCoins || 0, cloudData.goldCoins || 0);
-    baseData.cpc = Math.max(localData.cpc || 1, cloudData.cpc || 1);
-    baseData.baseCpc = Math.max(localData.baseCpc || 1, cloudData.baseCpc || 1);
-    baseData.cps = Math.max(localData.cps || 0, cloudData.cps || 0);
-    baseData.totalClicks = Math.max(localData.totalClicks || 0, cloudData.totalClicks || 0);
-    baseData.clickProgress = Math.max(localData.clickProgress || 0, cloudData.clickProgress || 0);
-    baseData.rebirths = Math.max(localData.rebirths || 0, cloudData.rebirths || 0);
-    baseData.rebirthTokens = Math.max(localData.rebirthTokens || 0, cloudData.rebirthTokens || 0);
-    baseData.bonusMultiplier = Math.max(localData.bonusMultiplier || 1, cloudData.bonusMultiplier || 1);
-    
-    // If local game has active game state flags, preserve them
-    if (localData._needsSave) {
-      baseData._needsSave = true;
-    }
-    
-    // Use most recent selected rock
-    baseData.selectedRock = (localData.lastSaved || 0) > (cloudData.lastSaved || 0) 
-      ? localData.selectedRock 
-      : cloudData.selectedRock;
-      
-    // IMPORTANT: If we're merging after a rebirth, ensure the rebirth state is preserved
-    // This is to fix the issue where rebirth progress gets lost
-    if (localData.rebirths > cloudData.rebirths) {
-      console.log('Detected recent rebirth, preserving rebirth state');
-      // Take all numerical values from local data since a rebirth resets but increases tokens
-      baseData.coins = localData.coins;
-      baseData.cpc = localData.cpc;
-      baseData.baseCpc = localData.baseCpc;
-      baseData.cps = localData.cps;
-      baseData.rebirths = localData.rebirths;
-      baseData.rebirthTokens = localData.rebirthTokens;
-      baseData.bonusMultiplier = localData.bonusMultiplier;
-    }
-    
-    // For rocks, if unlocked in either source, it should be unlocked in the result
-    if (baseData.rocks && otherData.rocks) {
-      baseData.rocks = baseData.rocks.map(rock => {
-        const otherRock = otherData.rocks.find(r => r.id === rock.id);
-        if (!otherRock) return rock;
-        
-        return {
-          ...rock,
-          unlocked: rock.unlocked || otherRock.unlocked
-        };
-      });
-    }
-    
-    // For upgrades, if owned in either source, should be owned in result
-    if (baseData.upgrades && otherData.upgrades) {
-    baseData.upgrades = baseData.upgrades.map(upgrade => {
-      const otherUpgrade = otherData.upgrades.find(u => u.id === upgrade.id);
-        if (!otherUpgrade) return upgrade;
-        
-      return {
-        ...upgrade,
-          owned: upgrade.owned || otherUpgrade.owned
-      };
-    });
-    }
-    
-    // For special upgrades, if owned in either source, should be owned in result
-    if (baseData.specialUpgrades && otherData.specialUpgrades) {
-    baseData.specialUpgrades = baseData.specialUpgrades.map(upgrade => {
-      const otherUpgrade = otherData.specialUpgrades.find(u => u.id === upgrade.id);
-        if (!otherUpgrade) return upgrade;
-        
-      return {
-        ...upgrade,
-          owned: upgrade.owned || otherUpgrade.owned
-      };
-    });
-    }
-    
-    // For auto miners, take the highest quantity and owned status
-    if (baseData.autoMiners && otherData.autoMiners) {
-    baseData.autoMiners = baseData.autoMiners.map(miner => {
-      const otherMiner = otherData.autoMiners.find(m => m.id === miner.id);
-        if (!otherMiner) return miner;
-        
-      return {
-        ...miner,
-          owned: miner.owned || otherMiner.owned,
-          quantity: Math.max(miner.quantity, otherMiner.quantity)
-      };
-    });
-    }
-    
-    // For achievements, if unlocked in either source, should be unlocked in result
-    if (baseData.achievements && otherData.achievements) {
-    baseData.achievements = baseData.achievements.map(achievement => {
-      const otherAchievement = otherData.achievements.find(a => a.id === achievement.id);
-        if (!otherAchievement) return achievement;
-        
-      return {
-        ...achievement,
-          unlocked: achievement.unlocked || otherAchievement.unlocked,
-          _hasShownNotification: achievement._hasShownNotification || otherAchievement._hasShownNotification
-      };
-    });
-    }
-    
-    // For abilities, take highest level and purchase status from either source
-    if (baseData.abilities && otherData.abilities) {
-    baseData.abilities = baseData.abilities.map(ability => {
-      const otherAbility = otherData.abilities.find(a => a.id === ability.id);
-        if (!otherAbility) return ability;
-        
-        // If purchased in either source (cost === 0), keep it purchased
-        const isPurchased = ability.cost === 0 || otherAbility.cost === 0;
-        
-        // Take the highest level
-        const highestLevel = Math.max(ability.level, otherAbility.level);
-        
-        // For active abilities, prefer the one that's active, or use the primary source
-        const isActive = (ability.active || otherAbility.active) ? true : false;
-        
-        // For cooldowns and timeRemaining, use the lowest value (favoring the ready state)
-        const cooldownRemaining = (ability.cooldownRemaining && otherAbility.cooldownRemaining) ? 
-          Math.min(ability.cooldownRemaining, otherAbility.cooldownRemaining) : 
-          (ability.cooldownRemaining || otherAbility.cooldownRemaining || 0);
-          
-        const timeRemaining = (ability.timeRemaining && otherAbility.timeRemaining) ?
-          Math.max(ability.timeRemaining, otherAbility.timeRemaining) :
-          (ability.timeRemaining || otherAbility.timeRemaining || 0);
-        
-      return {
-        ...ability,
-          level: highestLevel,
-          cost: isPurchased ? 0 : ability.cost,
-          active: isActive,
-          cooldownRemaining: isActive ? 0 : cooldownRemaining,
-          timeRemaining: isActive ? timeRemaining : 0
-      };
-    });
-    }
-    
-    // Set the timestamp to now to indicate a fresh merge
-    baseData.lastSaved = Date.now();
-    baseData.dataLoaded = true;
-    baseData._needsSave = true;
-    
-    // Set the version to the highest version + 1
-    baseData.version = Math.max(localVersion, cloudVersion) + 1;
-    
-    console.log(`Data merge complete - resulting: version=${baseData.version}, coins=${baseData.coins}`);
-    return baseData;
-  };
-  
-  // Add automatic periodic sync to ensure data consistency across devices
-  useEffect(() => {
-    // Skip if not authenticated or still initializing
-    if (!authState.isAuthenticated || isInitializing || !dataLoaded) {
-      return;
-    }
-    
-    // Set up periodic sync at much longer intervals (15 minutes instead of 5)
-    const syncInterval = setInterval(async () => {
-      // Skip sync if user is actively playing or has pending actions
-      if (state._needsSave || isLoading || isSaving) {
-        console.log('Skipping periodic sync - game state is changing or saving in progress');
-        return;
-      }
-      
-      console.log('Running periodic cross-device sync check...');
-      
-      try {
-        // Check for newer data in the cloud
-        const { data: cloudStateData, error: fetchError } = await supabase
-          .from('game_states')
-          .select('game_data, updated_at')
-          .eq('user_id', authState.user.id)
-          .limit(1)
-          .maybeSingle();
-        
-        if (fetchError) {
-          console.error('Error checking cloud data during periodic sync:', fetchError);
-    return;
   }
-  
-        if (!cloudStateData?.game_data) {
-          console.log('No cloud data found during periodic sync, skipping');
-    return;
-  }
-  
-        // Parse cloud data
-        const cloudData = typeof cloudStateData.game_data === 'string'
-          ? JSON.parse(cloudStateData.game_data)
-          : cloudStateData.game_data;
-        
-        // Compare versions
-        const cloudVersion = cloudData.version || 0;
-        const localVersion = state.version || 0;
-        
-        console.log(`Periodic sync check - Local version: ${localVersion}, Cloud version: ${cloudVersion}`);
-        
-        // Only sync if cloud version is SIGNIFICANTLY higher (more than 1 version difference)
-        // This prevents constant back-and-forth syncing for minor changes
-        if (cloudVersion > localVersion + 1) {
-          console.log('Found significantly newer data from another device, syncing...');
-          
-          // Always prioritize local progress for key game metrics
-          if (state.coins > cloudData.coins || state.totalCoinsEarned > cloudData.totalCoinsEarned) {
-            console.log('Local progress detected, performing careful merge to preserve progress');
-            
-            // Merge the data but ALWAYS prefer local numeric progress
-            const mergedData = {
-              ...cloudData,
-              coins: Math.max(state.coins, cloudData.coins),
-              totalCoinsEarned: Math.max(state.totalCoinsEarned, cloudData.totalCoinsEarned),
-              cpc: Math.max(state.cpc, cloudData.cpc),
-              cps: Math.max(state.cps, cloudData.cps),
-              totalClicks: Math.max(state.totalClicks, cloudData.totalClicks),
-              version: cloudVersion + 1 // Increment version to avoid immediate re-sync
-            };
-            
-            // Apply the merged data locally
-            dispatch({ type: 'LOAD_GAME', payload: mergedData });
-            
-            // Update local storage
-            await AsyncStorage.setItem('gameState', JSON.stringify(mergedData));
-            
-            console.log('Successfully merged data while preserving local progress');
-          } else {
-            // Traditional merge approach for when cloud has more progress
-            const mergedData = mergeGameData(state, cloudData);
-            
-            // Apply the merged data locally
-            dispatch({ type: 'LOAD_GAME', payload: mergedData });
-            
-            // Update local storage
-            await AsyncStorage.setItem('gameState', JSON.stringify(mergedData));
-            
-            console.log('Successfully synced data from another device');
-          }
-        }
-        // Only push changes if our version is SIGNIFICANTLY higher
-        else if (localVersion > cloudVersion + 1) {
-          console.log('Local data is significantly newer, pushing to cloud...');
-          
-          // Create merged data that preserves our changes
-          const mergedData = mergeGameData(cloudData, state);
-          const mergedDataStr = JSON.stringify(mergedData);
-          
-          // Update the cloud with our changes
-          const { error: updateError } = await supabase
-            .from('game_states')
-            .update({ 
-              game_data: mergedDataStr,
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', authState.user.id);
-          
-          if (updateError) {
-            console.error('Error updating cloud during periodic sync:', updateError);
-          } else {
-            console.log('Successfully pushed local changes to cloud');
-          }
-        } 
-        // Special case: Only sync if there's a major difference in progress
-        else if (
-          Math.abs(state.coins - cloudData.coins) > 1000 || 
-          Math.abs(state.totalCoinsEarned - cloudData.totalCoinsEarned) > 5000
-        ) {
-          console.log('Detected significant progress difference, syncing...');
-          
-          // Always take the higher values for game progress
-          const mergedData = {
-            ...state,
-            coins: Math.max(state.coins, cloudData.coins),
-            totalCoinsEarned: Math.max(state.totalCoinsEarned, cloudData.totalCoinsEarned),
-            version: Math.max(localVersion, cloudVersion) + 1
-          };
-          
-          // Update both local and cloud with the best progress
-          dispatch({ type: 'LOAD_GAME', payload: mergedData });
-          await AsyncStorage.setItem('gameState', JSON.stringify(mergedData));
-          
-          // Push to cloud if we had the better progress
-          if (state.coins > cloudData.coins || state.totalCoinsEarned > cloudData.totalCoinsEarned) {
-            const mergedDataStr = JSON.stringify(mergedData);
-            
-            const { error: updateError } = await supabase
-              .from('game_states')
-              .update({ 
-                game_data: mergedDataStr,
-                updated_at: new Date().toISOString()
-              })
-              .eq('user_id', authState.user.id);
-            
-            if (updateError) {
-              console.error('Error updating cloud with progress sync:', updateError);
-            } else {
-              console.log('Successfully synced significant progress difference');
-            }
-          }
-        } else {
-          console.log('Data versions are close or identical, skipping sync to prevent overwrites');
-        }
-      } catch (error) {
-        console.error('Error during periodic sync:', error);
-      }
-    }, 15 * 60 * 1000); // Run every 15 minutes instead of 5
-    
-    return () => clearInterval(syncInterval);
-  }, [authState.isAuthenticated, authState.user?.id, isInitializing, dataLoaded, state, dispatch, isLoading, isSaving]);
-  
-  return (
-    <GameContext.Provider value={contextValue}>
-      {children}
-    </GameContext.Provider>
-  );
-};
 
-// Custom hook to use the context
-export const useGameContext = () => {
-  const context = useContext(GameContext);
-  if (context === undefined) {
-    throw new Error('useGameContext must be used within a GameProvider');
-  }
-  return context;
+  return state;
 };

@@ -13,42 +13,20 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../context/AuthContext';
 import { useGameContext } from '../context/GameContext';
-import { supabase } from '../lib/supabase/client';
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const { authState } = useAuth();
   const { loadGame, isInitializing } = useGameContext();
   const [isLoading, setIsLoading] = useState(true);
-  const [dbStatus, setDbStatus] = useState(null);
   
   // Animation values
   const titleOpacity = React.useRef(new Animated.Value(0)).current;
   const buttonScale = React.useRef(new Animated.Value(0.9)).current;
   
   useEffect(() => {
-    const checkDatabase = async () => {
-      try {
-        const { data, error } = await supabase.from('users').select('id').limit(1);
-        
-        if (error) {
-          if (error.message.includes('does not exist')) {
-            setDbStatus('missing');
-          } else {
-            setDbStatus('error');
-          }
-        } else {
-          setDbStatus('ready');
-        }
-      } catch (error) {
-        setDbStatus('error');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     if (!isInitializing) {
-      checkDatabase();
+      setIsLoading(false);
     }
   }, [isInitializing]);
   
@@ -94,7 +72,7 @@ export default function WelcomeScreen() {
           resizeMode="contain"
         />
         <ActivityIndicator size="large" color="#FCE2A9" />
-        <Text style={styles.loadingText}>Loading rock clicker...</Text>
+        <Text style={styles.loadingText}>Loading BoulderBlitz...</Text>
       </View>
     );
   }
@@ -115,7 +93,7 @@ export default function WelcomeScreen() {
           />
           
           <Animated.Text style={[styles.title, { opacity: titleOpacity }]}>
-            Rock Clicker
+            BoulderBlitz
           </Animated.Text>
           
           <Text style={styles.subtitle}>
@@ -137,17 +115,6 @@ export default function WelcomeScreen() {
               </Text>
             </TouchableOpacity>
           </Animated.View>
-          
-          {dbStatus === 'missing' && (
-            <TouchableOpacity
-              style={styles.adminButton}
-              onPress={() => router.push('/admin')}
-            >
-              <Text style={styles.adminButtonText}>
-                Setup Database
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
     </ImageBackground>
@@ -238,15 +205,5 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
-  },
-  adminButton: {
-    marginTop: 30,
-    padding: 10,
-    backgroundColor: 'rgba(150, 75, 0, 0.7)',
-    borderRadius: 5,
-  },
-  adminButtonText: {
-    color: '#FFF',
-    fontSize: 14,
-  },
+  }
 }); 

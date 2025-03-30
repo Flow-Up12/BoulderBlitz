@@ -28,7 +28,7 @@ export const AchievementCard = ({ achievement }: AchievementCardProps) => {
             styles.reward, 
             achievement.unlocked ? styles.unlockedReward : styles.lockedReward
           ]}>
-            +{achievement.reward}
+            +{achievement.reward ? achievement.reward.toString() : "0"}
           </Text>
         </View>
       )}
