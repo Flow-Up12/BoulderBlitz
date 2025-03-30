@@ -589,7 +589,7 @@ export default function GameScreen() {
                       <Text style={styles.tabText}>Miners</Text>
                     </TouchableOpacity>
                     
-                    {state.goldCoins > 0 && (
+                    {(state.goldCoins > 0 || state.rebirths > 0) && (
                       <TouchableOpacity
                         style={[styles.tab, activeShopTab === 'special' ? styles.activeTab : null]}
                         onPress={() => setActiveShopTab('special')}

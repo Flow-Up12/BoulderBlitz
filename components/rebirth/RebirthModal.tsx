@@ -16,6 +16,19 @@ export default function RebirthModal({ visible, onClose }: RebirthModalProps) {
   // Calculate gold coins to be earned
   const goldCoinsToEarn = Math.floor(Math.sqrt(state.totalCoinsEarned / 1000000));
   
+  // This is to display the exact calculation to the player for transparency
+  const goldCoinsCalculation = () => {
+    const formula = '√(Total Coins / 1,000,000)';
+    const calculation = `√(${formatNumber(state.totalCoinsEarned)} / 1,000,000) = ${goldCoinsToEarn}`;
+    return (
+      <View style={styles.calculationContainer}>
+        <Text style={styles.calculationTitle}>Calculation:</Text>
+        <Text style={styles.calculationFormula}>{formula}</Text>
+        <Text style={styles.calculationResult}>{calculation}</Text>
+      </View>
+    );
+  };
+  
   // Reset confirmation when modal closes
   React.useEffect(() => {
     if (!visible) {
@@ -104,6 +117,9 @@ export default function RebirthModal({ visible, onClose }: RebirthModalProps) {
             <Text style={styles.keepItem}>• Achievements</Text>
             <Text style={styles.keepItem}>• All permanent bonuses</Text>
           </View>
+          
+          {/* Calculation */}
+          {goldCoinsCalculation()}
           
           {/* Buttons */}
           <View style={styles.buttonContainer}>
@@ -288,6 +304,28 @@ const styles = StyleSheet.create({
   rebirthButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  calculationContainer: {
+    backgroundColor: '#2A2A2A',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  calculationTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  calculationFormula: {
+    color: '#AAAAAA',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  calculationResult: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: 'bold',
   },
 }); 

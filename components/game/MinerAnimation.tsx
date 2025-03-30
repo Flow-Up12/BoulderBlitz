@@ -2,22 +2,17 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import PickaxeIcon from './PickaxeIcon';
 import { useGameContext } from '../../context/GameContext';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export type MinerAnimationProps = {
   size: number;
   active: boolean;
   pickaxeType?: string;
+  evolutionLevel?: number;
 };
 
 
 const getBestPickaxe = (upgrades: any[]) => {
-
-  // 'quantum-disruptor': 'quantum-disruptor.png',
-  // 'antimatter-crusher': 'antimatter-crusher.png',
-  // 'graviton-hammer': 'graviton-hammer.png',
-  // 'dark-energy-drill': 'dark-energy-drill.png',
-  // 'cosmic-excavator': 'cosmic-excavator.png',
-  // 'infinity-pickaxe': 'infinity-pickaxe.png',
   const pickaxeTypes = [
     { id: 'quantum-pickaxe', icon: 'quantum-disruptor.png' },
     { id: 'plasma-pickaxe', icon: 'plasma-cutter.png' },
@@ -46,10 +41,31 @@ const getBestPickaxe = (upgrades: any[]) => {
   return 'wooden-pickaxe.png';
 };
 
-function MinerAnimationComponent({ size, active, pickaxeType = 'wooden-pickaxe.png' }: MinerAnimationProps) {
+function MinerAnimationComponent({ size, active, pickaxeType = 'wooden-pickaxe.png', evolutionLevel = 0 }: MinerAnimationProps) {
   const { state } = useGameContext();
   const pickaxeAnim = useRef(new Animated.Value(0)).current;
   const coinAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0.5)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  
+  // Determine animation duration based on evolution level - higher levels mine faster
+  const getAnimationDuration = () => {
+    return 500 - (evolutionLevel * 75); // Decrease duration by 75ms per level (faster)
+  };
+  
+  // Get glow colors based on evolution level
+  const getGlowColors = (): [string, string] => {
+    switch (evolutionLevel) {
+      case 1:
+        return ['rgba(52, 152, 219, 0.7)', 'rgba(52, 152, 219, 0)'] as [string, string]; // Blue
+      case 2:
+        return ['rgba(155, 89, 182, 0.7)', 'rgba(155, 89, 182, 0)'] as [string, string]; // Purple
+      case 3:
+        return ['rgba(243, 156, 18, 0.8)', 'rgba(243, 156, 18, 0)'] as [string, string]; // Gold
+      default:
+        return ['transparent', 'transparent'] as [string, string];
+    }
+  };
   
   // Cache pickaxe animations to avoid recreating them on each render
   const pickaxeAnimations = useRef({
@@ -57,12 +73,12 @@ function MinerAnimationComponent({ size, active, pickaxeType = 'wooden-pickaxe.p
     sequence: Animated.sequence([
       Animated.timing(pickaxeAnim, {
         toValue: 1,
-        duration: 500,
+        duration: getAnimationDuration(),
         useNativeDriver: true,
       }),
       Animated.timing(pickaxeAnim, {
         toValue: 0,
-        duration: 500,
+        duration: getAnimationDuration(),
         useNativeDriver: true,
       }),
     ])
@@ -72,7 +88,7 @@ function MinerAnimationComponent({ size, active, pickaxeType = 'wooden-pickaxe.p
   const coinAnimations = useRef({
     loop: null as any,
     sequence: Animated.sequence([
-      Animated.delay(400), // Wait for pickaxe to hit
+      Animated.delay(getAnimationDuration() * 0.8), // Wait for pickaxe to hit
       Animated.timing(coinAnim, {
         toValue: 1,
         duration: 600,
@@ -81,6 +97,40 @@ function MinerAnimationComponent({ size, active, pickaxeType = 'wooden-pickaxe.p
       Animated.timing(coinAnim, {
         toValue: 0,
         duration: 0, // Reset immediately
+        useNativeDriver: true,
+      }),
+    ])
+  }).current;
+  
+  // Evolution glow effect
+  const glowAnimations = useRef({
+    loop: null as any,
+    sequence: Animated.sequence([
+      Animated.timing(glowAnim, {
+        toValue: 1,
+        duration: 1200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(glowAnim, {
+        toValue: 0.5,
+        duration: 1200,
+        useNativeDriver: true,
+      }),
+    ])
+  }).current;
+  
+  // Evolution scale pulse effect
+  const scaleAnimations = useRef({
+    loop: null as any,
+    sequence: Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 1 + (evolutionLevel * 0.05),
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 800,
         useNativeDriver: true,
       }),
     ])
@@ -99,6 +149,19 @@ function MinerAnimationComponent({ size, active, pickaxeType = 'wooden-pickaxe.p
         coinAnimations.loop = Animated.loop(coinAnimations.sequence);
         coinAnimations.loop.start();
       }
+      
+      // Evolution effects
+      if (evolutionLevel > 0) {
+        if (!glowAnimations.loop) {
+          glowAnimations.loop = Animated.loop(glowAnimations.sequence);
+          glowAnimations.loop.start();
+        }
+        
+        if (!scaleAnimations.loop) {
+          scaleAnimations.loop = Animated.loop(scaleAnimations.sequence);
+          scaleAnimations.loop.start();
+        }
+      }
     } else {
       // Stop animations when not active
       if (pickaxeAnimations.loop) {
@@ -110,15 +173,29 @@ function MinerAnimationComponent({ size, active, pickaxeType = 'wooden-pickaxe.p
         coinAnim.stopAnimation();
         coinAnimations.loop = null;
       }
+      
+      if (glowAnimations.loop) {
+        glowAnim.stopAnimation();
+        glowAnimations.loop = null;
+      }
+      
+      if (scaleAnimations.loop) {
+        scaleAnim.stopAnimation();
+        scaleAnimations.loop = null;
+      }
     }
     
     return () => {
       pickaxeAnim.stopAnimation();
       coinAnim.stopAnimation();
+      glowAnim.stopAnimation();
+      scaleAnim.stopAnimation();
       pickaxeAnimations.loop = null;
       coinAnimations.loop = null;
+      glowAnimations.loop = null;
+      scaleAnimations.loop = null;
     };
-  }, [active]);
+  }, [active, evolutionLevel]);
   
   // Don't render anything if not active
   if (!active) return null;
@@ -143,6 +220,28 @@ function MinerAnimationComponent({ size, active, pickaxeType = 'wooden-pickaxe.p
   
   return (
     <View style={[styles.container, { width: size, height: size }]}>
+      {/* Evolution Glow Background - only visible for evolved miners */}
+      {evolutionLevel > 0 && (
+        <Animated.View 
+          style={[
+            styles.evolutionGlow, 
+            { 
+              width: size * 1.8, 
+              height: size * 1.8,
+              opacity: glowAnim,
+              transform: [{ scale: scaleAnim }]
+            }
+          ]}
+        >
+          <LinearGradient
+            colors={getGlowColors()}
+            style={styles.gradientFill}
+            start={{ x: 0.5, y: 0.5 }}
+            end={{ x: 1, y: 1 }}
+          />
+        </Animated.View>
+      )}
+      
       {/* Pickaxe animation */}
       <Animated.View
         style={[
@@ -178,7 +277,21 @@ function MinerAnimationComponent({ size, active, pickaxeType = 'wooden-pickaxe.p
           },
         ]}
       >
-        <View style={styles.coin} />
+        <View 
+          style={[
+            styles.coin, 
+            // Increase size and change color based on evolution level
+            evolutionLevel > 0 && {
+              width: 10 + (evolutionLevel * 2),
+              height: 10 + (evolutionLevel * 2),
+              borderRadius: 5 + (evolutionLevel * 1),
+              backgroundColor: evolutionLevel === 3 ? '#FFD700' : // Gold
+                               evolutionLevel === 2 ? '#C0C0C0' : // Silver
+                               evolutionLevel === 1 ? '#CD7F32' : // Bronze
+                               '#FFD700', // Default gold
+            }
+          ]} 
+        />
       </Animated.View>
     </View>
   );
@@ -210,5 +323,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFD700',
     borderWidth: 1,
     borderColor: '#FFC000',
+  },
+  evolutionGlow: {
+    position: 'absolute',
+    borderRadius: 100,
+    overflow: 'hidden',
+    zIndex: 15,
+  },
+  gradientFill: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 100,
   },
 }); 

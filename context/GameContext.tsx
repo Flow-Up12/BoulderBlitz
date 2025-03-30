@@ -26,6 +26,9 @@ export type AutoMiner = {
   owned: boolean;
   quantity: number;
   icon: string; // Add icon path
+  evolutionLevel?: number; // Current evolution level (0-3)
+  evolutionCost?: number; // Cost in gold coins to evolve
+  baseMultiplier?: number; // Base multiplier that increases with evolution
 };
 
 export type Upgrade = {
@@ -37,6 +40,9 @@ export type Upgrade = {
   owned: boolean;
   type: 'pickaxe' | 'special'; // Type of upgrade
   icon: string; // Add icon path
+  evolutionLevel?: number; // Current evolution level (0-3)
+  evolutionCost?: number; // Cost in gold coins to evolve
+  baseMultiplier?: number; // Base multiplier that increases with evolution
 };
 
 export type SpecialUpgrade = {
@@ -141,7 +147,10 @@ const initialUpgrades: Upgrade[] = [
     cpcIncrease: 1,
     owned: false,
     type: 'pickaxe',
-    icon: 'wooden-pickaxe.png'
+    icon: 'wooden-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 1,
+    baseMultiplier: 1.0
   },
   {
     id: 'stone-pickaxe',
@@ -151,7 +160,10 @@ const initialUpgrades: Upgrade[] = [
     cpcIncrease: 3,
     owned: false,
     type: 'pickaxe',
-    icon: 'stone-pickaxe.png'
+    icon: 'stone-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 2,
+    baseMultiplier: 1.0
   },
   {
     id: 'copper-pickaxe',
@@ -161,7 +173,10 @@ const initialUpgrades: Upgrade[] = [
     cpcIncrease: 5,
     owned: false,
     type: 'pickaxe',
-    icon: 'copper-pickaxe.png'
+    icon: 'copper-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 3,
+    baseMultiplier: 1.0
   },
   {
     id: 'iron-pickaxe',
@@ -171,7 +186,10 @@ const initialUpgrades: Upgrade[] = [
     cpcIncrease: 10,
     owned: false,
     type: 'pickaxe',
-    icon: 'iron-pickaxe.png'
+    icon: 'iron-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 5,
+    baseMultiplier: 1.0
   },
   {
     id: 'gold-pickaxe',
@@ -181,7 +199,10 @@ const initialUpgrades: Upgrade[] = [
     cpcIncrease: 25,
     owned: false,
     type: 'pickaxe',
-    icon: 'gold-pickaxe.png'
+    icon: 'gold-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 8,
+    baseMultiplier: 1.0
   },
   {
     id: 'diamond-pickaxe',
@@ -191,7 +212,10 @@ const initialUpgrades: Upgrade[] = [
     cpcIncrease: 50,
     owned: false,
     type: 'pickaxe',
-    icon: 'diamond-pickaxe.png'
+    icon: 'diamond-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 12,
+    baseMultiplier: 1.0
   },
   {
     id: 'obsidian-pickaxe',
@@ -201,7 +225,10 @@ const initialUpgrades: Upgrade[] = [
     cpcIncrease: 100,
     owned: false,
     type: 'pickaxe',
-    icon: 'obsidian-pickaxe.png'
+    icon: 'obsidian-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 15,
+    baseMultiplier: 1.0
   },
   {
     id: 'plasma-pickaxe',
@@ -211,7 +238,10 @@ const initialUpgrades: Upgrade[] = [
     cpcIncrease: 250,
     owned: false,
     type: 'pickaxe',
-    icon: 'plasma-pickaxe.png'
+    icon: 'plasma-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 20,
+    baseMultiplier: 1.0
   },
   {
     id: 'quantum-pickaxe',
@@ -221,7 +251,10 @@ const initialUpgrades: Upgrade[] = [
     cpcIncrease: 1000,
     owned: false,
     type: 'pickaxe',
-    icon: 'quantum-pickaxe.png'
+    icon: 'quantum-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 25,
+    baseMultiplier: 1.0
   },
 ];
 
@@ -234,7 +267,10 @@ const initialAutoMiners: AutoMiner[] = [
     cps: 1,
     owned: false,
     quantity: 0,
-    icon: 'caveman-apprentice.png'
+    icon: 'caveman-apprentice.png',
+    evolutionLevel: 0,
+    evolutionCost: 1,
+    baseMultiplier: 1.0
   },
   {
     id: 'caveman-miner',
@@ -244,7 +280,10 @@ const initialAutoMiners: AutoMiner[] = [
     cps: 3,
     owned: false,
     quantity: 0,
-    icon: 'caveman-miner.png'
+    icon: 'caveman-miner.png',
+    evolutionLevel: 0,
+    evolutionCost: 2,
+    baseMultiplier: 1.0
   },
   {
     id: 'skilled-miner',
@@ -254,7 +293,10 @@ const initialAutoMiners: AutoMiner[] = [
     cps: 8,
     owned: false,
     quantity: 0,
-    icon: 'skilled-miner.png'
+    icon: 'skilled-miner.png',
+    evolutionLevel: 0,
+    evolutionCost: 3,
+    baseMultiplier: 1.0
   },
   {
     id: 'mining-expert',
@@ -264,7 +306,10 @@ const initialAutoMiners: AutoMiner[] = [
     cps: 20,
     owned: false,
     quantity: 0,
-    icon: 'mining-expert.png'
+    icon: 'mining-expert.png',
+    evolutionLevel: 0,
+    evolutionCost: 5,
+    baseMultiplier: 1.0
   },
   {
     id: 'drill-operator',
@@ -274,7 +319,10 @@ const initialAutoMiners: AutoMiner[] = [
     cps: 50,
     owned: false,
     quantity: 0,
-    icon: 'drill-operator.png'
+    icon: 'drill-operator.png',
+    evolutionLevel: 0,
+    evolutionCost: 8,
+    baseMultiplier: 1.0
   },
   {
     id: 'mining-robot',
@@ -284,7 +332,10 @@ const initialAutoMiners: AutoMiner[] = [
     cps: 150,
     owned: false,
     quantity: 0,
-    icon: 'mining-robot.png'
+    icon: 'mining-robot.png',
+    evolutionLevel: 0,
+    evolutionCost: 12,
+    baseMultiplier: 1.0
   },
   {
     id: 'quantum-miner',
@@ -294,7 +345,10 @@ const initialAutoMiners: AutoMiner[] = [
     cps: 500,
     owned: false,
     quantity: 0,
-    icon: 'quantum-miner.png'
+    icon: 'quantum-miner.png',
+    evolutionLevel: 0,
+    evolutionCost: 15,
+    baseMultiplier: 1.0
   },
 ];
 
@@ -443,7 +497,19 @@ const initialSpecialUpgrades: SpecialUpgrade[] = [
     maxLevel: 5,
     upgradeCost: 18,
     effectMultiplier: 0.05 // Starts at 5% chance, increases with levels
-  }
+  },
+  {
+    id: 'quantum-computer',
+    name: 'Quantum Computer',
+    description: 'Increases CPC by 15%',
+    cost: 10,
+    effect: 'increases_cpc_by_15_percent',
+    owned: false,
+    level: 1,
+    maxLevel: 5,
+    upgradeCost: 15,
+    effectMultiplier: 1.15
+  },
 ];
 
 const initialAbilities: Ability[] = [
@@ -798,7 +864,10 @@ const additionalAutoMiners: AutoMiner[] = [
     cps: 1500,
     owned: false,
     quantity: 0,
-    icon: 'nano-miner.png'
+    icon: 'nano-miner.png',
+    evolutionLevel: 0,
+    evolutionCost: 18,
+    baseMultiplier: 1.0
   },
   {
     id: 'gravity-miner',
@@ -808,7 +877,10 @@ const additionalAutoMiners: AutoMiner[] = [
     cps: 5000,
     owned: false,
     quantity: 0,
-    icon: 'gravity-miner-colorful.png'
+    icon: 'gravity-miner-colorful.png',
+    evolutionLevel: 0,
+    evolutionCost: 22,
+    baseMultiplier: 1.0
   },
   {
     id: 'time-miner',
@@ -818,7 +890,10 @@ const additionalAutoMiners: AutoMiner[] = [
     cps: 20000,
     owned: false,
     quantity: 0,
-    icon: 'time-miner.png'
+    icon: 'time-miner.png',
+    evolutionLevel: 0,
+    evolutionCost: 28,
+    baseMultiplier: 1.0
   },
   {
     id: 'black-hole-miner',
@@ -828,28 +903,37 @@ const additionalAutoMiners: AutoMiner[] = [
     cps: 100000,
     owned: false,
     quantity: 0,
-    icon: 'black-hole-miner.png'
+    icon: 'black-hole-miner.png',
+    evolutionLevel: 0,
+    evolutionCost: 35,
+    baseMultiplier: 1.0
   },
-  // New advanced miners
+  // New advanced miners - already have evolution properties for these two
   {
     id: 'quantum-miner',
-    name: 'Quantum Miner',
-    description: 'Mines 500,000 coins per second using quantum tunneling',
+    name: 'Quantum Tunneling Miner',
+    description: 'Mines 500,000 coins per second using quantum tunneling technology',
     cost: 5000000000,
     cps: 500000,
     owned: false,
     quantity: 0,
-    icon: 'quantum-miner.png'
+    icon: 'quantum-miner.png',
+    evolutionLevel: 0,
+    evolutionCost: 20,
+    baseMultiplier: 1.0
   },
   {
     id: 'antimatter-miner',
-    name: 'Antimatter Miner',
-    description: 'Mines 2,000,000 coins per second using antimatter reactions',
+    name: 'Antimatter Reactor Miner',
+    description: 'Mines 2,000,000 coins per second using antimatter-matter reactions',
     cost: 25000000000,
     cps: 2000000,
     owned: false,
     quantity: 0,
-    icon: 'antimatter-miner.png'
+    icon: 'antimatter-miner.png',
+    evolutionLevel: 0,
+    evolutionCost: 25,
+    baseMultiplier: 1.0
   },
   {
     id: 'dimensional-miner',
@@ -859,7 +943,10 @@ const additionalAutoMiners: AutoMiner[] = [
     cps: 10000000,
     owned: false,
     quantity: 0,
-    icon: 'dimensional-miner.png'
+    icon: 'dimensional-miner.png',
+    evolutionLevel: 0,
+    evolutionCost: 40,
+    baseMultiplier: 1.0
   },
   {
     id: 'cosmic-miner',
@@ -869,7 +956,10 @@ const additionalAutoMiners: AutoMiner[] = [
     cps: 50000000,
     owned: false,
     quantity: 0,
-    icon: 'cosmic-miner.png'
+    icon: 'cosmic-miner.png',
+    evolutionLevel: 0,
+    evolutionCost: 45,
+    baseMultiplier: 1.0
   },
   {
     id: 'infinity-miner',
@@ -879,7 +969,10 @@ const additionalAutoMiners: AutoMiner[] = [
     cps: 250000000,
     owned: false,
     quantity: 0,
-    icon: 'infinity-miner.png'
+    icon: 'infinity-miner.png',
+    evolutionLevel: 0,
+    evolutionCost: 50,
+    baseMultiplier: 1.0
   }
 ];
 
@@ -893,7 +986,10 @@ const additionalUpgrades: Upgrade[] = [
     cpcIncrease: 5000,
     owned: false,
     type: 'pickaxe',
-    icon: 'ultra-diamond-pickaxe.png'
+    icon: 'ultra-diamond-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 30,
+    baseMultiplier: 1.0
   },
   {
     id: 'laser-pickaxe',
@@ -903,7 +999,10 @@ const additionalUpgrades: Upgrade[] = [
     cpcIncrease: 20000,
     owned: false,
     type: 'pickaxe',
-    icon: 'laser-pickaxe.png'
+    icon: 'laser-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 35,
+    baseMultiplier: 1.0
   },
   {
     id: 'plasma-cutter',
@@ -913,7 +1012,10 @@ const additionalUpgrades: Upgrade[] = [
     cpcIncrease: 75000,
     owned: false,
     type: 'pickaxe',
-    icon: 'plasma-cutter.png'
+    icon: 'plasma-cutter.png',
+    evolutionLevel: 0,
+    evolutionCost: 40,
+    baseMultiplier: 1.0
   },
   {
     id: 'quantum-disruptor',
@@ -923,9 +1025,12 @@ const additionalUpgrades: Upgrade[] = [
     cpcIncrease: 300000,
     owned: false,
     type: 'pickaxe',
-    icon: 'quantum-disruptor.png'
+    icon: 'quantum-disruptor.png',
+    evolutionLevel: 0,
+    evolutionCost: 45,
+    baseMultiplier: 1.0
   },
-  // New advanced pickaxes
+  // New advanced pickaxes - already have evolution properties for these
   {
     id: 'antimatter-crusher',
     name: 'Antimatter Crusher',
@@ -934,7 +1039,10 @@ const additionalUpgrades: Upgrade[] = [
     cpcIncrease: 1500000,
     owned: false,
     type: 'pickaxe',
-    icon: 'antimatter-crusher.png'
+    icon: 'antimatter-crusher.png',
+    evolutionLevel: 0,
+    evolutionCost: 50,
+    baseMultiplier: 1.0
   },
   {
     id: 'graviton-hammer',
@@ -944,7 +1052,10 @@ const additionalUpgrades: Upgrade[] = [
     cpcIncrease: 7500000,
     owned: false,
     type: 'pickaxe',
-    icon: 'graviton-hammer.png'
+    icon: 'graviton-hammer.png',
+    evolutionLevel: 0,
+    evolutionCost: 55,
+    baseMultiplier: 1.0
   },
   {
     id: 'dark-energy-drill',
@@ -954,7 +1065,10 @@ const additionalUpgrades: Upgrade[] = [
     cpcIncrease: 30000000,
     owned: false,
     type: 'pickaxe',
-    icon: 'dark-energy-drill.png'
+    icon: 'dark-energy-drill.png',
+    evolutionLevel: 0,
+    evolutionCost: 60,
+    baseMultiplier: 1.0
   },
   {
     id: 'cosmic-excavator',
@@ -964,7 +1078,10 @@ const additionalUpgrades: Upgrade[] = [
     cpcIncrease: 150000000,
     owned: false,
     type: 'pickaxe',
-    icon: 'cosmic-excavator.png'
+    icon: 'cosmic-excavator.png',
+    evolutionLevel: 0,
+    evolutionCost: 65,
+    baseMultiplier: 1.0
   },
   {
     id: 'infinity-pickaxe',
@@ -974,7 +1091,10 @@ const additionalUpgrades: Upgrade[] = [
     cpcIncrease: 1000000000,
     owned: false,
     type: 'pickaxe',
-    icon: 'infinity-pickaxe.png'
+    icon: 'infinity-pickaxe.png',
+    evolutionLevel: 0,
+    evolutionCost: 70,
+    baseMultiplier: 1.0
   }
 ];
 
@@ -1040,6 +1160,8 @@ type GameAction =
   | { type: 'UNLOCK_ROCK'; payload: string }
   | { type: 'SELECT_ROCK'; payload: string }
   | { type: 'SELECT_PICKAXE'; payload: string } // Add SELECT_PICKAXE action
+  | { type: 'EVOLVE_PICKAXE'; payload: string } // Add evolution for pickaxes
+  | { type: 'EVOLVE_MINER'; payload: string } // Add evolution for miners
   | { type: 'ACTIVATE_ABILITY'; payload: string }
   | { type: 'DEACTIVATE_ABILITY'; payload: string }
   | { type: 'UPGRADE_ABILITY'; payload: string }
@@ -2203,7 +2325,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const upgradeId = action.payload;
       const upgrade = state.specialUpgrades.find(u => u.id === upgradeId);
       
-      if (!upgrade || upgrade.owned || state.goldCoins < upgrade.upgradeCost) {
+      if (!upgrade || !upgrade.owned || upgrade.level >= upgrade.maxLevel || state.goldCoins < upgrade.upgradeCost) {
         return state;
       }
       
@@ -2216,14 +2338,20 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       
       const newSpecialUpgrades = state.specialUpgrades.map(u => 
-        u.id === upgradeId ? { ...u, owned: true, level: u.level + 1, upgradeCost: Math.floor(u.upgradeCost * 1.5) } : u
+        u.id === upgradeId ? { 
+          ...u, 
+          level: u.level + 1, 
+          upgradeCost: Math.floor(u.upgradeCost * 1.5),
+          effectMultiplier: u.effectMultiplier * 1.25 // Increase effect multiplier by 25%
+        } : u
       );
       
       const newState = {
         ...state,
         goldCoins: state.goldCoins - upgrade.upgradeCost,
         specialUpgrades: newSpecialUpgrades,
-        _needsSave: true // Save on upgrade purchase
+        _needsSave: true, // Save on upgrade purchase
+        _needsCloudSave: true
       };
       
       // Check for achievements
@@ -2466,7 +2594,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       
       // Award gold coins based on progress
-      const goldCoinsToAward = Math.floor(Math.log10(state.totalCoinsEarned) - 8);
+      const goldCoinsToAward = Math.floor(Math.sqrt(state.totalCoinsEarned / 1000000));
+      
+      // Console log the calculation for debugging
+      console.log(`Rebirth gold calculation: √(${state.totalCoinsEarned} / 1,000,000) = ${goldCoinsToAward}`);
       
       // Unlock the rebirth-master achievement if this is the first rebirth
       const newAchievements = state.achievements.map(a => 
@@ -2496,8 +2627,97 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         multiplier: ability.multiplier
       }));
       
+      // Create new arrays that preserve evolution information
+      const preservedUpgrades = initialUpgrades.map(initialUpgrade => {
+        // Find the matching upgrade in the current state
+        const existingUpgrade = state.upgrades.find(u => u.id === initialUpgrade.id);
+        
+        // If it exists and has evolution data, preserve it
+        if (existingUpgrade && existingUpgrade.evolutionLevel > 0) {
+          return {
+            ...initialUpgrade,
+            owned: false, // Reset ownership
+            evolutionLevel: existingUpgrade.evolutionLevel,
+            evolutionCost: existingUpgrade.evolutionCost,
+            baseMultiplier: existingUpgrade.baseMultiplier
+          };
+        }
+        
+        // Otherwise return the default initial upgrade
+        return initialUpgrade;
+      });
+      
+      // Also preserve evolution data for additional upgrades
+      const preservedAdditionalUpgrades = additionalUpgrades.map(additionalUpgrade => {
+        // Find the matching upgrade in the current state
+        const existingUpgrade = state.upgrades.find(u => u.id === additionalUpgrade.id);
+        
+        // If it exists and has evolution data, preserve it
+        if (existingUpgrade && existingUpgrade.evolutionLevel > 0) {
+          return {
+            ...additionalUpgrade,
+            owned: false, // Reset ownership
+            evolutionLevel: existingUpgrade.evolutionLevel,
+            evolutionCost: existingUpgrade.evolutionCost,
+            baseMultiplier: existingUpgrade.baseMultiplier
+          };
+        }
+        
+        // Otherwise return the default additional upgrade
+        return additionalUpgrade;
+      });
+      
+      // Combine the preserved upgrades
+      const combinedPreservedUpgrades = [...preservedUpgrades, ...preservedAdditionalUpgrades];
+      
+      // Do the same for auto miners
+      const preservedAutoMiners = initialAutoMiners.map(initialMiner => {
+        // Find the matching miner in the current state
+        const existingMiner = state.autoMiners.find(m => m.id === initialMiner.id);
+        
+        // If it exists and has evolution data, preserve it
+        if (existingMiner && existingMiner.evolutionLevel > 0) {
+          return {
+            ...initialMiner,
+            owned: false, // Reset ownership
+            quantity: 0, // Reset quantity
+            evolutionLevel: existingMiner.evolutionLevel,
+            evolutionCost: existingMiner.evolutionCost,
+            baseMultiplier: existingMiner.baseMultiplier
+          };
+        }
+        
+        // Otherwise return the default initial miner
+        return initialMiner;
+      });
+      
+      // Also preserve evolution data for additional miners
+      const preservedAdditionalMiners = additionalAutoMiners.map(additionalMiner => {
+        // Find the matching miner in the current state
+        const existingMiner = state.autoMiners.find(m => m.id === additionalMiner.id);
+        
+        // If it exists and has evolution data, preserve it
+        if (existingMiner && existingMiner.evolutionLevel > 0) {
+          return {
+            ...additionalMiner,
+            owned: false, // Reset ownership
+            quantity: 0, // Reset quantity
+            evolutionLevel: existingMiner.evolutionLevel,
+            evolutionCost: existingMiner.evolutionCost,
+            baseMultiplier: existingMiner.baseMultiplier
+          };
+        }
+        
+        // Otherwise return the default additional miner
+        return additionalMiner;
+      });
+      
+      // Combine the preserved miners
+      const combinedPreservedMiners = [...preservedAutoMiners, ...preservedAdditionalMiners];
+      
       console.log(`Rebirth: Gold coins earned ${goldCoinsToAward}, New total: ${state.goldCoins + goldCoinsToAward}`);
       console.log(`Rebirth: New bonus multiplier: ${state.bonusMultiplier + 0.1}`);
+      console.log(`Rebirth: Preserved ${combinedPreservedUpgrades.filter(u => u.evolutionLevel > 0).length} evolved pickaxes and ${combinedPreservedMiners.filter(m => m.evolutionLevel > 0).length} evolved miners`);
       
       // Reset the game to initial state but keep certain progress
       const resetState = {
@@ -2510,12 +2730,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         achievements: updatedAchievements,
         specialUpgrades: state.specialUpgrades, // Keep special upgrades
         abilities: preservedAbilities, // Keep purchased abilities
+        upgrades: combinedPreservedUpgrades, // Use preserved upgrades with evolution data
+        autoMiners: combinedPreservedMiners, // Use preserved miners with evolution data
+        selectedPickaxe: 'wooden-pickaxe', // Reset selected pickaxe to wooden
         theme: state.theme, // Keep the selected theme
         soundEnabled: state.soundEnabled, // Keep sound preference
         hapticsEnabled: state.hapticsEnabled, // Keep haptic preference
         notificationsEnabled: state.notificationsEnabled, // Keep notification preference
         offlineProgressEnabled: state.offlineProgressEnabled, // Keep offline progress preference
         _needsSave: true, // Always save on rebirth
+        _needsCloudSave: true, // Always save to cloud on rebirth
         dataLoaded: true // Mark data as loaded to prevent auto-reload
       };
       
@@ -2841,6 +3065,86 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
     
+    case 'EVOLVE_PICKAXE': {
+      const pickaxeId = action.payload;
+      const pickaxe = state.upgrades.find(u => u.id === pickaxeId && u.type === 'pickaxe');
+      
+      if (!pickaxe || !pickaxe.owned || pickaxe.evolutionLevel === 3 || state.goldCoins < pickaxe.evolutionCost) {
+        return state;
+      }
+      
+      // Play upgrade sound
+      try {
+        SoundManager.playSound('upgrade', state.soundEnabled);
+      } catch (error) {
+        // Silently catch errors to prevent game disruption
+        console.warn('Error playing upgrade sound:', error);
+      }
+      
+      const newUpgrades = state.upgrades.map(u => 
+        u.id === pickaxeId ? { 
+          ...u, 
+          evolutionLevel: (u.evolutionLevel || 0) + 1, 
+          evolutionCost: Math.floor((u.evolutionCost || 1) * 2), 
+          baseMultiplier: (u.baseMultiplier || 1.0) + 0.5 // Increase multiplier by 0.5 each evolution
+        } : u
+      );
+      
+      const newState = {
+        ...state,
+        goldCoins: state.goldCoins - pickaxe.evolutionCost,
+        upgrades: newUpgrades,
+        _needsSave: true, // Save on evolution
+        _needsCloudSave: true // Important change, save to cloud
+      };
+      
+      // Recalculate CPC with new multipliers
+      newState.cpc = calculateTotalCPC(newState);
+      
+      // Check for achievements
+      return checkAchievements(newState);
+    }
+    
+    case 'EVOLVE_MINER': {
+      const minerId = action.payload;
+      const miner = state.autoMiners.find(m => m.id === minerId);
+      
+      if (!miner || !miner.owned || miner.evolutionLevel === 3 || state.goldCoins < miner.evolutionCost) {
+        return state;
+      }
+      
+      // Play upgrade sound
+      try {
+        SoundManager.playSound('upgrade', state.soundEnabled);
+      } catch (error) {
+        // Silently catch errors to prevent game disruption
+        console.warn('Error playing upgrade sound:', error);
+      }
+      
+      const newAutoMiners = state.autoMiners.map(m => 
+        m.id === minerId ? { 
+          ...m, 
+          evolutionLevel: (m.evolutionLevel || 0) + 1, 
+          evolutionCost: Math.floor((m.evolutionCost || 1) * 2),
+          baseMultiplier: (m.baseMultiplier || 1.0) + 0.5 // Increase multiplier by 0.5 each evolution
+        } : m
+      );
+      
+      const newState = {
+        ...state,
+        goldCoins: state.goldCoins - miner.evolutionCost,
+        autoMiners: newAutoMiners,
+        _needsSave: true, // Save on evolution
+        _needsCloudSave: true // Important change, save to cloud
+      };
+      
+      // Recalculate CPS with new multipliers
+      newState.cps = calculateTotalCPS(newState);
+      
+      // Check for achievements
+      return checkAchievements(newState);
+    }
+    
     default:
       return state;
   }
@@ -2848,9 +3152,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
 // Helper function to calculate total CPC with all boosts, including active abilities
 const calculateTotalCPC = (state: GameState) => {
+  // Calculate pickaxe bonus with evolution multipliers applied
   const pickaxeBonus = state.upgrades
     .filter(u => u.owned && u.type === 'pickaxe')
-    .reduce((sum, u) => sum + u.cpcIncrease, 0);
+    .reduce((sum, u) => {
+      // Apply evolution multiplier if it exists
+      const evolutionMultiplier = u.evolutionLevel ? 1 + (u.evolutionLevel * 0.5) : 1;
+      return sum + (u.cpcIncrease * evolutionMultiplier);
+    }, 0);
   
   // Use the proper bonusMultiplier from rebirth instead of calculating
   const rebirthMultiplier = state.bonusMultiplier;
@@ -2862,6 +3171,11 @@ const calculateTotalCPC = (state: GameState) => {
   const goldenGlovesBonus = state.specialUpgrades.find(u => u.id === 'golden-gloves')?.owned ? 1.25 : 1;
   const cosmicDrillBonus = state.specialUpgrades.find(u => u.id === 'cosmic-drill')?.owned ? 3 : 1;
   
+  // Additional special upgrade bonuses
+  const quantumComputerBonus = state.specialUpgrades.find(u => u.id === 'quantum-computer')?.owned ? 1.5 : 1;
+  const timeWarpBonus = state.specialUpgrades.find(u => u.id === 'time-warp')?.owned ? 1.5 : 1;
+  const luckyCharmBonus = state.specialUpgrades.find(u => u.id === 'lucky-charm')?.owned ? 1.1 : 1;
+  
   // Apply cosmic drill effect to pickaxe bonus
   const effectivePickaxeBonus = state.specialUpgrades.find(u => u.id === 'cosmic-drill')?.owned 
     ? pickaxeBonus * cosmicDrillBonus 
@@ -2871,13 +3185,27 @@ const calculateTotalCPC = (state: GameState) => {
   const coinScatterAbility = state.abilities.find(a => a.id === 'coin-scatter' && a.active);
   const abilityMultiplier = coinScatterAbility ? coinScatterAbility.multiplier : 1;
   
-  return (state.baseCpc + effectivePickaxeBonus) * rebirthMultiplier * doubleClickBonus * goldenGlovesBonus * abilityMultiplier;
+  // Apply all multipliers
+  return (state.baseCpc + effectivePickaxeBonus) * 
+    rebirthMultiplier * 
+    doubleClickBonus * 
+    goldenGlovesBonus * 
+    quantumComputerBonus * 
+    timeWarpBonus * 
+    luckyCharmBonus * 
+    abilityMultiplier;
 };
 
 // Helper function to calculate total CPS from all auto miners, including active abilities
 const calculateTotalCPS = (state: GameState) => {
+  // Calculate auto miner output with evolution multipliers applied
   const baseAutoMinerOutput = state.autoMiners.reduce((sum, miner) => {
-    return sum + (miner.cps * miner.quantity);
+    if (miner.owned && miner.quantity > 0) {
+      // Apply evolution multiplier if it exists
+      const evolutionMultiplier = miner.evolutionLevel ? 1 + (miner.evolutionLevel * 0.5) : 1;
+      return sum + (miner.cps * miner.quantity * evolutionMultiplier);
+    }
+    return sum;
   }, 0);
   
   // Apply auto miner boost if the special upgrade is owned
@@ -2886,6 +3214,11 @@ const calculateTotalCPS = (state: GameState) => {
   // Apply miners-helmet boost if owned
   const minersHelmetBoost = state.specialUpgrades.find(u => u.id === 'miners-helmet')?.owned ? 1.25 : 1;
   
+  // Additional special upgrades affecting miners
+  const quantumComputerBoost = state.specialUpgrades.find(u => u.id === 'quantum-computer')?.owned ? 1.5 : 1;
+  const timeWarpBoost = state.specialUpgrades.find(u => u.id === 'time-warp')?.owned ? 1.5 : 1;
+  const offlineBoost = state.specialUpgrades.find(u => u.id === 'offline-progress')?.owned ? 1.2 : 1;
+  
   // Use the proper bonusMultiplier from rebirth instead of calculating
   const rebirthMultiplier = state.bonusMultiplier;
   
@@ -2893,7 +3226,15 @@ const calculateTotalCPS = (state: GameState) => {
   const minersFrenzyAbility = state.abilities.find(a => a.id === 'miners-frenzy' && a.active);
   const abilityMultiplier = minersFrenzyAbility ? minersFrenzyAbility.multiplier : 1;
   
-  return baseAutoMinerOutput * autoMinerBoost * minersHelmetBoost * rebirthMultiplier * abilityMultiplier;
+  // Apply all multipliers
+  return baseAutoMinerOutput * 
+    autoMinerBoost * 
+    minersHelmetBoost * 
+    quantumComputerBoost * 
+    timeWarpBoost * 
+    offlineBoost * 
+    rebirthMultiplier * 
+    abilityMultiplier;
 };
 
 // Helper to check and update achievements
