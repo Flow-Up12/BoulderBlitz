@@ -1,10 +1,47 @@
 {
   "expo": {
-    "scheme": "acme",
+    "name": "BuilderBlitz",
+    "slug": "boulder-blitz",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/Boulder Blitz.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/images/Boulder Blitz.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1F1F1F"
+    },
+    "assetBundlePatterns": [
+      "assets/**/*",
+      "!assets/**/*.webp"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.marcosjimenez.boulderblitz",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/Boulder Blitz.png",
+        "backgroundColor": "#1F1F1F"
+      },
+      "package": "com.marcosjimenez.boulderblitz"
+    },
+    "extra": {
+      "supabaseUrl": "YOUR_SUPABASE_URL",
+      "supabaseAnonKey": "YOUR_SUPABASE_ANON_KEY",
+      "eas": {
+        "projectId": "9218087f-8700-4eb1-aa4e-1f160e6215dc"
+      },
+      "router": {
+        "origin": false
+      }
+    },
     "plugins": [
       "expo-router"
     ],
-    "name": "rock-clicker",
-    "slug": "rock-clicker"
+    "owner": "flow-up12"
   }
 }

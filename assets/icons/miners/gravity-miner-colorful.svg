@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Black hole / gravity well center -->
+  <circle cx="256" cy="256" r="100" fill="#4B0082" opacity="0.8"/>
+  <circle cx="256" cy="256" r="80" fill="#8A2BE2" opacity="0.7"/>
+  <circle cx="256" cy="256" r="60" fill="#9370DB" opacity="0.9"/>
+  <circle cx="256" cy="256" r="40" fill="#BA55D3"/>
+  
+  <!-- Gravity effect - orbiting particles -->
+  <g fill="#FFFFFF">
+    <circle cx="220" cy="180" r="4"/>
+    <circle cx="295" cy="165" r="5"/>
+    <circle cx="325" cy="235" r="3"/>
+    <circle cx="290" cy="320" r="4"/>
+    <circle cx="210" cy="320" r="5"/>
+    <circle cx="175" cy="235" r="3"/>
+  </g>
+  
+  <!-- Spiral gravity field effect -->
+  <g fill="none" stroke="#EE82EE" stroke-width="3">
+    <path d="M256 156 C 330 180, 345 256, 320 330 C 300 380, 210 390, 170 350 C 140 320, 130 256, 156 210 C 180 170, 220 156, 256 156" opacity="0.7"/>
+    <path d="M256 196 C 300 210, 310 256, 290 300 C 275 335, 220 345, 190 320 C 170 300, 160 256, 190 220 C 210 195, 240 196, 256 196" opacity="0.8"/>
+    <path d="M256 226 C 280 235, 290 256, 275 280 C 265 300, 235 310, 215 296 C 195 285, 195 256, 215 235 C 225 225, 245 226, 256 226" opacity="0.9"/>
+  </g>
+  
+  <!-- Colorful accents -->
+  <g fill="none" stroke-width="2">
+    <path d="M156 256 C 190 220, 235 180, 280 165" stroke="#FF00FF" opacity="0.6"/>
+    <path d="M256 356 C 296 336, 330 300, 345 256" stroke="#00FFFF" opacity="0.6"/>
+    <path d="M165 180 C 195 165, 235 156, 270 156" stroke="#FFFF00" opacity="0.6"/>
+  </g>
+</svg> 
