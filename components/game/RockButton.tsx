@@ -10,19 +10,19 @@ import { formatScientific } from '../../utils/formatters';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
-const ROCK_SIZE = Math.min(width, height) * 0.5; // Make rock 50% of smallest screen dimension
+const ROCK_SIZE = Math.min(width, height) * 0.65; // Make rock 50% of smallest screen dimension
 const MINER_SIZE = ROCK_SIZE * 0.4; // Miners are 40% of rock size
 
 // Precompute animation configurations
 const SCALE_DOWN_CONFIG = {
   toValue: 0.95,
-  duration: 100,
+  duration: 50,
   useNativeDriver: true,
 };
 
 const SCALE_UP_CONFIG = {
   toValue: 1,
-  duration: 100,
+  duration: 50,
   useNativeDriver: true,
 };
 
@@ -154,11 +154,11 @@ export const RockButton = React.memo(() => {
   }, []);
   
   const handlePress = useCallback((event) => {
-    // Haptic feedback
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } else {
-      Vibration.vibrate(10);
+    // Haptic feedback - simplified to reduce delay
+    if (Platform.OS === 'ios' && state.hapticsEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else if (state.hapticsEnabled) {
+      Vibration.vibrate(5); // Reduced from 10ms to 5ms
     }
     
     // Get the touch position for animations
@@ -171,41 +171,19 @@ export const RockButton = React.memo(() => {
     // Store the current click value for display
     setLastClickValue(state.cpc);
     
-    // Show the coin earned popup
-    setShowCoinEarned(true);
-    animations.coinAnim.start(() => {
-      setShowCoinEarned(false);
-    });
-    
-    // Set the rotation direction randomly
-    rotateAnim.setValue(0);
-    if (Math.random() > 0.5) {
-      rotateAnim.setValue(0);
-    } else {
-      rotateAnim.setValue(0);
+    // Skip showing coin earned animation for every click
+    // Only show it occasionally for performance
+    if (Math.random() < 0.3) { // 30% chance to show animation
+      setShowCoinEarned(true);
+      animations.coinAnim.start(() => {
+        setShowCoinEarned(false);
+      });
     }
     
-    // Animate press
+    // Animate press - simplified for better performance
     animations.pressAnim.start();
     
-    // Gradually grow the rock with each click
-    // Calculate growth factor based on progress toward 500 clicks
-    const progressFactor = (state.clickProgress + 1) / 500;
-    const targetGrowth = 1 + (progressFactor * 0.4); // Max growth is 1.4x
-    
-    // Clear any existing timeout
-    if (growthTimeout.current) {
-      clearTimeout(growthTimeout.current);
-    }
-    
-    // Animate to the new growth size
-    Animated.timing(growthAnim, {
-      toValue: targetGrowth,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-    
-    // Handle combo logic
+    // Handle combo logic - only process if combo feature is enabled
     const now = Date.now();
     const timeDiff = now - lastClickTime.current;
     
@@ -216,12 +194,14 @@ export const RockButton = React.memo(() => {
       }
       
       setCombo(prev => prev + 1);
-      setShowCombo(true);
       
-      // Show combo text
-      animations.comboAnim.start(() => {
-        setShowCombo(false);
-      });
+      // Only show combo animation occasionally for performance
+      if (Math.random() < 0.3 || combo > 5) { // Show more often for higher combos
+        setShowCombo(true);
+        animations.comboAnim.start(() => {
+          setShowCombo(false);
+        });
+      }
     } else {
       setCombo(1);
     }
@@ -233,15 +213,17 @@ export const RockButton = React.memo(() => {
     
     lastClickTime.current = now;
     
-    // Update game state
+    // Update game state - immediately dispatch the click action
     dispatch({ 
       type: 'CLICK_ROCK_WITH_ANIMATION', 
       payload: { x: touchX, y: touchY } 
     });
     
-    // Create the slice animation
-    createSliceAnimation(touchX, touchY);
-  }, [state.cpc, state.clickProgress]);
+    // Skip creating slice effects for every click to improve performance
+    if (Math.random() < 0.3) { // 30% chance to show effect
+      createSliceAnimation(touchX, touchY);
+    }
+  }, [state.cpc, state.clickProgress, state.hapticsEnabled, combo]);
   
   // Function to create a slice animation
   const createSliceAnimation = (x, y) => {
@@ -292,7 +274,7 @@ export const RockButton = React.memo(() => {
   
   // Render the slice effects
   const renderSliceEffects = () => {
-    return sliceAnimations.current.map(slice => {
+    return sliceAnimations.current.map((slice, index) => {
       const rotateInterpolation = slice.rotate.interpolate({
         inputRange: [0, 1],
         outputRange: [`${slice.angle}deg`, `${slice.angle + 90}deg`]
@@ -300,7 +282,7 @@ export const RockButton = React.memo(() => {
       
       return (
         <Animated.View
-          key={slice.id}
+          key={`${slice.id}-${index}`}
           style={[
             styles.sliceEffect,
             {
@@ -372,9 +354,23 @@ export const RockButton = React.memo(() => {
       { id: 'iron-pickaxe', icon: 'iron-pickaxe.png' },
       { id: 'copper-pickaxe', icon: 'copper-pickaxe.png' },
       { id: 'stone-pickaxe', icon: 'stone-pickaxe.png' },
-      { id: 'wooden-pickaxe', icon: 'wooden-pickaxe.png' }
+      { id: 'wooden-pickaxe', icon: 'wooden-pickaxe.png' },
+      { id: 'antimatter-crusher', icon: 'antimatter-crusher.png' },
+      { id: 'graviton-hammer', icon: 'graviton-hammer.png' },
+      { id: 'dark-energy-drill', icon: 'dark-energy-drill.png' },
+      { id: 'cosmic-excavator', icon: 'cosmic-excavator.png' },
+      { id: 'infinity-pickaxe', icon: 'infinity-pickaxe.png' },
     ];
     
+    // If user has selected a pickaxe, use that instead
+    if (state.selectedPickaxe) {
+      const selectedType = pickaxeTypes.find(type => type.id === state.selectedPickaxe);
+      if (selectedType) {
+        return selectedType.icon;
+      }
+    }
+    
+    // Otherwise fall back to the most powerful owned pickaxe
     for (const type of pickaxeTypes) {
       const upgrade = state.upgrades.find(u => u.id === type.id && u.owned);
       if (upgrade) {
@@ -383,7 +379,7 @@ export const RockButton = React.memo(() => {
     }
     
     return 'wooden-pickaxe.png';
-  }, [state.upgrades]);
+  }, [state.upgrades, state.selectedPickaxe]);
   
   // Calculate miner positions - cache the calculation since it's expensive
   const getMinerPosition = useCallback((index, totalMiners) => {
@@ -414,7 +410,7 @@ export const RockButton = React.memo(() => {
               
               return (
                 <View
-                  key={minerType}
+                  key={`${minerType}-${index}`}
                   style={[
                     styles.minerContainer,
                     {
@@ -429,6 +425,7 @@ export const RockButton = React.memo(() => {
                     size={MINER_SIZE}
                     position="none"
                     minerType={minerType}
+                    key={`${minerType}-${index}`} 
                   />
                   <MinerAnimation 
                     size={MINER_SIZE}

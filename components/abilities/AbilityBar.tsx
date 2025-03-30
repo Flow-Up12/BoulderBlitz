@@ -40,7 +40,7 @@ const AbilityBar = () => {
   
   return (
     <View style={styles.container}>
-      {purchasedAbilities.map((ability) => {
+      {purchasedAbilities.map((ability, index) => {
         const isActive = ability.active;
         const isOnCooldown = !ability.active && ability.cooldownRemaining && ability.cooldownRemaining > 0;
         const isReady = !ability.active && (!ability.cooldownRemaining || ability.cooldownRemaining <= 0);
@@ -60,7 +60,7 @@ const AbilityBar = () => {
         
         return (
           <TouchableOpacity 
-            key={ability.id}
+            key={`${ability.id}-${index}`}
             style={[
               styles.abilityButton,
               isActive && styles.activeAbility,

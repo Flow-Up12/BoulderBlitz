@@ -9,10 +9,12 @@ import PickaxeIcon from '../game/PickaxeIcon';
 type UpgradeItemProps = {
   upgrade: Upgrade;
   onPress: () => void;
+  onEquip: (id: string) => void;
   disabled: boolean;
+  isEquipped: boolean;
 };
 
-const UpgradeItem = ({ upgrade, onPress, disabled }: UpgradeItemProps) => {
+const UpgradeItem = ({ upgrade, onPress, onEquip, disabled, isEquipped }: UpgradeItemProps) => {
   // Map upgrade id to the corresponding pickaxe image file name
   const getPickaxeFileName = (id: string) => {
     const mapping = {
@@ -28,7 +30,12 @@ const UpgradeItem = ({ upgrade, onPress, disabled }: UpgradeItemProps) => {
       'ultra-diamond-pickaxe': 'ultra-diamond-pickaxe.png',
       'laser-pickaxe': 'laser-pickaxe.png',
       'plasma-cutter': 'plasma-cutter.png',
-      'quantum-disruptor': 'quantum-disruptor.png'
+      'quantum-disruptor': 'quantum-disruptor.png',
+      'antimatter-crusher': 'antimatter-crusher.png',
+      'graviton-hammer': 'graviton-hammer.png',
+      'dark-energy-drill': 'dark-energy-drill.png',
+      'cosmic-excavator': 'cosmic-excavator.png',
+      'infinity-pickaxe': 'infinity-pickaxe.png',
     };
     
     return mapping[id] || 'wooden-pickaxe.png';
@@ -39,10 +46,11 @@ const UpgradeItem = ({ upgrade, onPress, disabled }: UpgradeItemProps) => {
       style={[
         styles.upgradeItem, 
         disabled ? styles.disabledUpgrade : null,
-        upgrade.owned ? styles.ownedUpgrade : null
+        upgrade.owned ? styles.ownedUpgrade : null,
+        isEquipped ? styles.equippedUpgrade : null
       ]}
-      onPress={onPress}
-      disabled={disabled}
+      onPress={upgrade.owned ? () => onEquip(upgrade.id) : onPress}
+      disabled={disabled && !upgrade.owned}
     >
       <View style={styles.upgradeIcon}>
         <PickaxeIcon size={40} pickaxeType={getPickaxeFileName(upgrade.id)} />
@@ -53,17 +61,32 @@ const UpgradeItem = ({ upgrade, onPress, disabled }: UpgradeItemProps) => {
         <Text style={styles.upgradeDescription}>{upgrade.description}</Text>
         
         <View style={styles.detailsContainer}>
-          <CoinDisplay 
-            value={upgrade.cost} 
-            size="small" 
-          />
-          
-          {upgrade.owned && (
+          {!upgrade.owned ? (
+            <CoinDisplay 
+              value={upgrade.cost} 
+              size="small" 
+            />
+          ) : (
             <View style={styles.cpcBadge}>
               <Text style={styles.cpcText}>
                 +{formatNumber(upgrade.cpcIncrease)} CPC
               </Text>
             </View>
+          )}
+          
+          {upgrade.owned && (
+            isEquipped ? (
+              <View style={styles.equippedBadge}>
+                <Text style={styles.equippedText}>Equipped</Text>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={styles.equipButton}
+                onPress={() => onEquip(upgrade.id)}
+              >
+                <Text style={styles.equipText}>Equip</Text>
+              </TouchableOpacity>
+            )
           )}
         </View>
       </View>
@@ -84,14 +107,24 @@ export default function UpgradeList() {
     });
   };
   
+  const handleEquipPickaxe = (id: string) => {
+    dispatch({
+      type: 'SELECT_PICKAXE',
+      payload: id
+    });
+  };
+  
   const renderUpgradeItem = ({ item }: { item: Upgrade }) => {
     const canAfford = state.coins >= item.cost;
+    const isEquipped = state.selectedPickaxe === item.id;
     
     return (
       <UpgradeItem
         upgrade={item}
         onPress={() => handleBuyUpgrade(item)}
+        onEquip={handleEquipPickaxe}
         disabled={!canAfford || item.owned}
+        isEquipped={isEquipped}
       />
     );
   };
@@ -141,6 +174,11 @@ const styles = StyleSheet.create({
   ownedUpgrade: {
     backgroundColor: '#2E3D32',
   },
+  equippedUpgrade: {
+    backgroundColor: '#1E5A2E',
+    borderWidth: 1,
+    borderColor: '#8EFFB2',
+  },
   upgradeIcon: {
     width: 40,
     height: 40,
@@ -178,6 +216,28 @@ const styles = StyleSheet.create({
   },
   cpcText: {
     color: '#8EFFB2',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  equippedBadge: {
+    backgroundColor: '#2E5A2E',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  equippedText: {
+    color: '#8EFFB2',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  equipButton: {
+    backgroundColor: '#2E5A2E',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  equipText: {
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: 'bold',
   },

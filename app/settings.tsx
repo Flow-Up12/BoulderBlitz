@@ -30,6 +30,7 @@ export default function SettingsScreen() {
   const [notifications, setNotifications] = useState(state.notificationsEnabled);
   const [sound, setSound] = useState(state.soundEnabled);
   const [haptics, setHaptics] = useState(state.hapticsEnabled);
+  const [tutorialEnabled, setTutorialEnabled] = useState(state.tutorialEnabled || false);
 
   // Handle logout
   const handleLogout = async () => {
@@ -141,6 +142,23 @@ export default function SettingsScreen() {
     saveGame();
   };
   
+  const handleTutorialToggle = (value: boolean) => {
+    setTutorialEnabled(value);
+    // Update in state
+    dispatch({ type: 'TOGGLE_TUTORIAL', payload: value });
+    // Store tutorial preference in AsyncStorage
+    try {
+      if (value) {
+        AsyncStorage.removeItem('tutorialCompleted');
+      } else {
+        AsyncStorage.setItem('tutorialCompleted', 'true');
+      }
+    } catch (error) {
+      console.error('Error updating tutorial settings:', error);
+    }
+    saveGame();
+  };
+
   // Handle data management functions
   const confirmDataDeletion = () => {
     Alert.alert(
@@ -306,6 +324,21 @@ export default function SettingsScreen() {
                 value={haptics}
                 onValueChange={handleHapticsToggle}
                 color="#7B68EE"
+              />
+            )}
+          />
+          <List.Item
+            title="Tutorial"
+            titleStyle={styles.listTitle}
+            description="Show tutorial on game start (Currently disabled due to stability issues)"
+            descriptionStyle={{ ...styles.listDescription, color: '#CF6679' }}
+            left={props => <List.Icon {...props} icon="help-circle" color="#CF6679" />}
+            right={props => (
+              <Switch
+                value={false} // Force off for now
+                onValueChange={handleTutorialToggle}
+                color="#7B68EE"
+                disabled={true} // Disable the switch since tutorial is causing crashes
               />
             )}
           />

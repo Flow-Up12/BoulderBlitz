@@ -132,7 +132,7 @@ export default function CoinCounterWrapper() {
     const clickingCPS = getClicksPerSecond() * state.cpc;
     
     return minerCPS + clickingCPS;
-  }, [state.autoMiners, state.cpc, getClicksPerSecond, state.totalClicks]);
+  }, [state.autoMiners, state.cpc, state.totalClicks, state.coins]);
   
   return <CoinCounter coins={state.coins} cpc={state.cpc} cps={totalCPS} />;
 }

@@ -8,12 +8,10 @@ import CoinCounter from '../components/game/CoinCounter';
 import { RockShop } from '../components/shop/RockShop';
 import UpgradeList from '../components/shop/UpgradeList';
 import AutoMinerList from '../components/shop/AutoMinerList';
-import { useGameContext } from '../context/GameContext';
 import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
 import { Dimensions } from 'react-native';
 
 export default function ShopScreen() {
-  const { state } = useGameContext();
   const [index, setIndex] = React.useState(0);
   const [routes] = React.useState([
     { key: 'rocks', title: 'Rocks' },

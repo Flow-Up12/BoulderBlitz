@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import Svg, { Path, Circle, G, Rect } from 'react-native-svg';
+import Svg, { Path, Circle, G, Rect, Defs, LinearGradient, Stop, RadialGradient, Ellipse, Line, Polygon } from 'react-native-svg';
 
 export type MinerIconProps = {
   size: number;
@@ -438,6 +438,332 @@ const minerSvgIcons = {
         <Circle cx="22" cy="20" r="0.5" />
         <Circle cx="23" cy="28" r="0.7" />
       </G>
+    </Svg>
+  ),
+  'infinity-miner.png': (size: number) => (
+    <Svg width={size} height={size} viewBox="0 0 50 50">
+      <Defs>
+        <RadialGradient id="infinitySphereCore" cx="50%" cy="50%" r="50%" fx="40%" fy="40%">
+          <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
+          <Stop offset="20%" stopColor="#E0FFFF" stopOpacity="0.9" />
+          <Stop offset="50%" stopColor="#87CEFA" stopOpacity="0.8" />
+          <Stop offset="80%" stopColor="#1E90FF" stopOpacity="0.7" />
+          <Stop offset="100%" stopColor="#0000CD" stopOpacity="0.6" />
+        </RadialGradient>
+        <RadialGradient id="infinityAura" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+          <Stop offset="0%" stopColor="#9370DB" stopOpacity="0.1" />
+          <Stop offset="70%" stopColor="#4B0082" stopOpacity="0.3" />
+          <Stop offset="100%" stopColor="#4B0082" stopOpacity="0" />
+        </RadialGradient>
+        <LinearGradient id="cosmicMetal" x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#303030" />
+          <Stop offset="40%" stopColor="#505050" />
+          <Stop offset="60%" stopColor="#404040" />
+          <Stop offset="100%" stopColor="#202020" />
+        </LinearGradient>
+        <LinearGradient id="infinityEnergy" x1="0%" y1="0%" x2="100%" y2="0%">
+          <Stop offset="0%" stopColor="#9370DB" stopOpacity="0" />
+          <Stop offset="50%" stopColor="#8A2BE2" stopOpacity="1" />
+          <Stop offset="100%" stopColor="#9370DB" stopOpacity="0" />
+        </LinearGradient>
+      </Defs>
+      
+      {/* Ethereal body that transcends typical form */}
+      <Circle cx="25" cy="25" r="20" fill="url(#infinityAura)" />
+
+      {/* Advanced crystalline exoskeleton */}
+      <Path d="M20 10 L30 10 L33 15 L35 20 L35 30 L33 35 L30 40 L20 40 L17 35 L15 30 L15 20 L17 15 Z" 
+        fill="url(#cosmicMetal)" opacity="0.7" />
+        
+      {/* Infinity core chamber */}
+      <Circle cx="25" cy="25" r="10" fill="#000000" opacity="0.8" />
+      <Circle cx="25" cy="25" r="8" fill="#0A0A1A" opacity="0.9" />
+      
+      {/* Infinity symbol in the core */}
+      <Path d="M20 25 C18 22, 18 18, 20 15 C22 12, 26 12, 28 15 C30 18, 30 22, 28 25 C30 28, 30 32, 28 35 C26 38, 22 38, 20 35 C18 32, 18 28, 20 25 Z" 
+        stroke="#8A2BE2" strokeWidth="1.5" fill="none" />
+      
+      {/* Central infinity power sphere */}
+      <Circle cx="25" cy="25" r="4" fill="url(#infinitySphereCore)" />
+      <Circle cx="25" cy="25" r="2" fill="#FFFFFF" />
+      
+      {/* Energy projection beams */}
+      <Path d="M25 5 L25 15" stroke="url(#infinityEnergy)" strokeWidth="2" />
+      <Path d="M25 35 L25 45" stroke="url(#infinityEnergy)" strokeWidth="2" />
+      <Path d="M5 25 L15 25" stroke="url(#infinityEnergy)" strokeWidth="2" />
+      <Path d="M35 25 L45 25" stroke="url(#infinityEnergy)" strokeWidth="2" />
+      
+      {/* Diagonal energy beams */}
+      <Path d="M15 15 L20 20" stroke="url(#infinityEnergy)" strokeWidth="1.5" />
+      <Path d="M30 20 L35 15" stroke="url(#infinityEnergy)" strokeWidth="1.5" />
+      <Path d="M15 35 L20 30" stroke="url(#infinityEnergy)" strokeWidth="1.5" />
+      <Path d="M30 30 L35 35" stroke="url(#infinityEnergy)" strokeWidth="1.5" />
+      
+      {/* Crystalline energy formations */}
+      <Circle cx="25" cy="8" r="1.5" fill="#8A2BE2" opacity="0.8" />
+      <Circle cx="25" cy="42" r="1.5" fill="#8A2BE2" opacity="0.8" />
+      <Circle cx="8" cy="25" r="1.5" fill="#8A2BE2" opacity="0.8" />
+      <Circle cx="42" cy="25" r="1.5" fill="#8A2BE2" opacity="0.8" />
+      
+      {/* Cosmic energy particles */}
+      <Circle cx="22" cy="22" r="0.5" fill="#FFFFFF" />
+      <Circle cx="28" cy="22" r="0.3" fill="#FFFFFF" />
+      <Circle cx="22" cy="28" r="0.3" fill="#FFFFFF" />
+      <Circle cx="28" cy="28" r="0.5" fill="#FFFFFF" />
+
+      {/* Advanced technology indicators */}
+      <Circle cx="18" cy="18" r="1" fill="#1E90FF" />
+      <Circle cx="32" cy="18" r="1" fill="#1E90FF" />
+      <Circle cx="18" cy="32" r="1" fill="#1E90FF" />
+      <Circle cx="32" cy="32" r="1" fill="#1E90FF" />
+    </Svg>
+  ),
+  'cosmic-miner.png': (size: number) => (
+    <Svg width={size} height={size} viewBox="0 0 50 50">
+      <Defs>
+        <RadialGradient id="cosmicSphereGrad" cx="50%" cy="50%" r="50%" fx="40%" fy="40%">
+          <Stop offset="0%" stopColor="#FFFFFF" />
+          <Stop offset="30%" stopColor="#E6E6FA" />
+          <Stop offset="60%" stopColor="#9370DB" />
+          <Stop offset="80%" stopColor="#4B0082" />
+          <Stop offset="100%" stopColor="#191970" />
+        </RadialGradient>
+        <LinearGradient id="cosmicArmorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#191970" />
+          <Stop offset="50%" stopColor="#4169E1" />
+          <Stop offset="100%" stopColor="#191970" />
+        </LinearGradient>
+        <RadialGradient id="starBurstGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+          <Stop offset="0%" stopColor="#FFFFFF" />
+          <Stop offset="30%" stopColor="#FFD700" stopOpacity="0.8" />
+          <Stop offset="100%" stopColor="#FFA500" stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+      
+      {/* Cosmic energy field */}
+      <Circle cx="25" cy="25" r="22" fill="#000000" opacity="0.2" />
+      
+      {/* Advanced cosmic armor */}
+      <Path d="M15 15 L35 15 L32 35 L18 35 Z" fill="url(#cosmicArmorGrad)" />
+      <Path d="M19 10 L31 10 L35 15 L15 15 Z" fill="url(#cosmicArmorGrad)" />
+
+      {/* Helmet with starlight visor */}
+      <Circle cx="25" cy="10" r="7" fill="url(#cosmicArmorGrad)" />
+      <Path d="M20 10 L30 10 L28 13 L22 13 Z" fill="#4169E1" opacity="0.7" />
+      
+      {/* Cosmic mining apparatus */}
+      <Path d="M15 20 L10 25 L15 30" fill="url(#cosmicArmorGrad)" stroke="#4169E1" strokeWidth="0.5" />
+      <Path d="M35 20 L40 25 L35 30" fill="url(#cosmicArmorGrad)" stroke="#4169E1" strokeWidth="0.5" />
+      
+      {/* Central cosmic core/galaxy */}
+      <Circle cx="25" cy="25" r="6" fill="url(#cosmicSphereGrad)" />
+      
+      {/* Spiral arms of galaxy core */}
+      <Path d="M25 25 C27 23, 29 22, 31 22 C33 22, 33 25, 32 27 C31 29, 29 30, 25 29 C21 28, 21 26, 23 24 C25 22, 29 23, 31 26" 
+        stroke="#9370DB" strokeWidth="0.5" fill="none" />
+      <Path d="M25 25 C23 27, 21 28, 19 28 C17 28, 17 25, 18 23 C19 21, 21 20, 25 21 C29 22, 29 24, 27 26 C25 28, 21 27, 19 24" 
+        stroke="#9370DB" strokeWidth="0.5" fill="none" />
+      
+      {/* Cosmic mining beam */}
+      <Path d="M10 25 L3 25" stroke="#4169E1" strokeWidth="2" strokeDasharray="1,0.5" />
+      <Path d="M40 25 L47 25" stroke="#4169E1" strokeWidth="2" strokeDasharray="1,0.5" />
+      <Circle cx="3" cy="25" r="1.5" fill="url(#starBurstGrad)" />
+      <Circle cx="47" cy="25" r="1.5" fill="url(#starBurstGrad)" />
+      
+      {/* Stellar energy flows */}
+      <Path d="M25 15 L25 19" stroke="#FFFFFF" strokeWidth="0.5" strokeDasharray="0.5,0.5" />
+      <Path d="M18 20 L22 22" stroke="#FFFFFF" strokeWidth="0.5" strokeDasharray="0.5,0.5" />
+      <Path d="M18 30 L22 28" stroke="#FFFFFF" strokeWidth="0.5" strokeDasharray="0.5,0.5" />
+      <Path d="M25 31 L25 35" stroke="#FFFFFF" strokeWidth="0.5" strokeDasharray="0.5,0.5" />
+      <Path d="M32 20 L28 22" stroke="#FFFFFF" strokeWidth="0.5" strokeDasharray="0.5,0.5" />
+      <Path d="M32 30 L28 28" stroke="#FFFFFF" strokeWidth="0.5" strokeDasharray="0.5,0.5" />
+      
+      {/* Cosmic dust and stars */}
+      <Circle cx="20" cy="25" r="0.4" fill="#FFFFFF" />
+      <Circle cx="30" cy="25" r="0.4" fill="#FFFFFF" />
+      <Circle cx="25" cy="20" r="0.4" fill="#FFFFFF" />
+      <Circle cx="25" cy="30" r="0.4" fill="#FFFFFF" />
+      <Circle cx="22" cy="22" r="0.3" fill="#FFFFFF" />
+      <Circle cx="28" cy="22" r="0.3" fill="#FFFFFF" />
+      <Circle cx="22" cy="28" r="0.3" fill="#FFFFFF" />
+      <Circle cx="28" cy="28" r="0.3" fill="#FFFFFF" />
+      
+      {/* Legs with cosmic propulsion */}
+      <Path d="M20 35 L15 45" fill="url(#cosmicArmorGrad)" />
+      <Path d="M30 35 L35 45" fill="url(#cosmicArmorGrad)" />
+      <Circle cx="15" cy="45" r="2" fill="#4169E1" />
+      <Circle cx="35" cy="45" r="2" fill="#4169E1" />
+      <Circle cx="15" cy="45" r="3" fill="none" stroke="#6495ED" strokeWidth="0.5" strokeDasharray="1,1" />
+      <Circle cx="35" cy="45" r="3" fill="none" stroke="#6495ED" strokeWidth="0.5" strokeDasharray="1,1" />
+    </Svg>
+  ),
+  'dimensional-miner.png': (size: number) => (
+    <Svg width={size} height={size} viewBox="0 0 50 50">
+      <Defs>
+        <LinearGradient id="dimensionalMetal" x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#008080" />
+          <Stop offset="50%" stopColor="#20B2AA" />
+          <Stop offset="100%" stopColor="#008080" />
+        </LinearGradient>
+        <RadialGradient id="dimensionalCore" cx="50%" cy="50%" r="50%" fx="40%" fy="40%">
+          <Stop offset="0%" stopColor="#FFFFFF" />
+          <Stop offset="40%" stopColor="#7FFFD4" />
+          <Stop offset="70%" stopColor="#00CED1" />
+          <Stop offset="100%" stopColor="#008B8B" />
+        </RadialGradient>
+        <RadialGradient id="portalEffect" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
+          <Stop offset="0%" stopColor="#E0FFFF" stopOpacity="1" />
+          <Stop offset="50%" stopColor="#00FFFF" stopOpacity="0.5" />
+          <Stop offset="100%" stopColor="#008B8B" stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+      
+      {/* Interdimensional field */}
+      <Circle cx="25" cy="25" r="23" fill="#000000" opacity="0.1" />
+      
+      {/* Main body with interdimensional tech */}
+      <Path d="M17 12 L33 12 L38 25 L33 38 L17 38 L12 25 Z" fill="url(#dimensionalMetal)" />
+      
+      {/* Dimensional portal on chest */}
+      <Circle cx="25" cy="24" r="6" fill="url(#dimensionalCore)" />
+      <Circle cx="25" cy="24" r="8" fill="none" stroke="#40E0D0" strokeWidth="0.5" strokeDasharray="1,1" />
+      <Circle cx="25" cy="24" r="10" fill="none" stroke="#40E0D0" strokeWidth="0.3" strokeDasharray="0.5,1.5" />
+      
+      {/* Holographic dimension scanner */}
+      <G opacity="0.7">
+        <Path d="M17 15 L20 15 L20 18 L17 18 Z" fill="#E0FFFF" />
+        <Path d="M30 15 L33 15 L33 18 L30 18 Z" fill="#E0FFFF" />
+        <Path d="M17 30 L20 30 L20 33 L17 33 Z" fill="#E0FFFF" />
+        <Path d="M30 30 L33 30 L33 33 L30 33 Z" fill="#E0FFFF" />
+      </G>
+      
+      {/* Dimension crossing beams */}
+      <Path d="M17 16.5 L33 16.5" stroke="#00FFFF" strokeWidth="0.3" strokeDasharray="0.5,0.5" />
+      <Path d="M17 31.5 L33 31.5" stroke="#00FFFF" strokeWidth="0.3" strokeDasharray="0.5,0.5" />
+      <Path d="M18.5 15 L18.5 33" stroke="#00FFFF" strokeWidth="0.3" strokeDasharray="0.5,0.5" />
+      <Path d="M31.5 15 L31.5 33" stroke="#00FFFF" strokeWidth="0.3" strokeDasharray="0.5,0.5" />
+      
+      {/* Advanced dimensional mining appendages */}
+      <Path d="M15 20 L5 20 L5 30 L15 30" fill="url(#dimensionalMetal)" />
+      <Path d="M35 20 L45 20 L45 30 L35 30" fill="url(#dimensionalMetal)" />
+      
+      {/* Dimensional portals on arms */}
+      <Circle cx="10" cy="25" r="3" fill="url(#portalEffect)" />
+      <Circle cx="40" cy="25" r="3" fill="url(#portalEffect)" />
+      
+      {/* Dimensional mining streams */}
+      <Path d="M10 22 L10 28" stroke="#E0FFFF" strokeWidth="2" strokeOpacity="0.7" />
+      <Path d="M7 25 L13 25" stroke="#E0FFFF" strokeWidth="2" strokeOpacity="0.7" />
+      <Path d="M40 22 L40 28" stroke="#E0FFFF" strokeWidth="2" strokeOpacity="0.7" />
+      <Path d="M37 25 L43 25" stroke="#E0FFFF" strokeWidth="2" strokeOpacity="0.7" />
+      
+      {/* Advanced dimensional propulsion */}
+      <Path d="M20 38 L15 48" fill="url(#dimensionalMetal)" />
+      <Path d="M30 38 L35 48" fill="url(#dimensionalMetal)" />
+      <Circle cx="15" cy="48" r="1.5" fill="url(#portalEffect)" />
+      <Circle cx="35" cy="48" r="1.5" fill="url(#portalEffect)" />
+      
+      {/* Head with multidimensional sensory array */}
+      <Circle cx="25" cy="8" r="5" fill="url(#dimensionalMetal)" />
+      <Rect x="21" y="5" width="8" height="2" rx="1" fill="#7FFFD4" />
+      
+      {/* Dimensional rift indicators */}
+      <Path d="M23 8 C22 6, 24 4, 27 5 C30 6, 28 9, 25 8 C22 7, 24 10, 27 9" 
+        stroke="#E0FFFF" strokeWidth="0.5" fill="none" />
+      
+      {/* Quantum particles */}
+      <Circle cx="23" cy="6" r="0.3" fill="#FFFFFF" />
+      <Circle cx="27" cy="6" r="0.3" fill="#FFFFFF" />
+      <Circle cx="25" cy="10" r="0.3" fill="#FFFFFF" />
+    </Svg>
+  ),
+  'antimatter-miner.png': (size: number) => (
+    <Svg width={size} height={size} viewBox="0 0 50 50">
+      <Defs>
+        <RadialGradient id="antimatterCore" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+          <Stop offset="0%" stopColor="#FFFFFF" />
+          <Stop offset="20%" stopColor="#FFCCFF" />
+          <Stop offset="40%" stopColor="#FF00FF" />
+          <Stop offset="60%" stopColor="#9900CC" />
+          <Stop offset="100%" stopColor="#330033" />
+        </RadialGradient>
+        <RadialGradient id="containmentField" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+          <Stop offset="0%" stopColor="#FF00FF" stopOpacity="0" />
+          <Stop offset="50%" stopColor="#FF00FF" stopOpacity="0.3" />
+          <Stop offset="100%" stopColor="#FF00FF" stopOpacity="0" />
+        </RadialGradient>
+        <LinearGradient id="antimatterHousing" x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#1A1A1A" />
+          <Stop offset="50%" stopColor="#333333" />
+          <Stop offset="100%" stopColor="#1A1A1A" />
+        </LinearGradient>
+      </Defs>
+      
+      {/* Antimatter containment field */}
+      <Circle cx="25" cy="25" r="22" fill="url(#containmentField)" />
+      <Circle cx="25" cy="25" r="18" fill="none" stroke="#FF00FF" strokeWidth="0.5" strokeDasharray="1,2" />
+      <Circle cx="25" cy="25" r="15" fill="none" stroke="#CC00CC" strokeWidth="0.3" strokeDasharray="3,1" />
+      
+      {/* Core housing structure */}
+      <Path d="M18 15 L32 15 L35 25 L32 35 L18 35 L15 25 Z" fill="url(#antimatterHousing)" />
+      <Path d="M18 15 L32 15" stroke="#FF33FF" strokeWidth="0.5" />
+      <Path d="M32 15 L35 25" stroke="#FF33FF" strokeWidth="0.5" />
+      <Path d="M35 25 L32 35" stroke="#FF33FF" strokeWidth="0.5" />
+      <Path d="M32 35 L18 35" stroke="#FF33FF" strokeWidth="0.5" />
+      <Path d="M18 35 L15 25" stroke="#FF33FF" strokeWidth="0.5" />
+      <Path d="M15 25 L18 15" stroke="#FF33FF" strokeWidth="0.5" />
+      
+      {/* Antimatter core */}
+      <Circle cx="25" cy="25" r="7" fill="url(#antimatterCore)" />
+      <Circle cx="25" cy="25" r="9" fill="none" stroke="#FF66FF" strokeWidth="0.8" strokeDasharray="0.8,0.8" />
+      
+      {/* Energy conversion appendages */}
+      <Path d="M15 25 L5 15 L8 25 L5 35" fill="none" stroke="#FF00FF" strokeWidth="1.5" strokeLinecap="round" />
+      <Path d="M35 25 L45 15 L42 25 L45 35" fill="none" stroke="#FF00FF" strokeWidth="1.5" strokeLinecap="round" />
+      
+      {/* Antimatter collection nodes */}
+      <Circle cx="5" cy="15" r="2" fill="#660066" />
+      <Circle cx="5" cy="15" r="1" fill="#FF00FF" />
+      <Circle cx="8" cy="25" r="1.5" fill="#660066" />
+      <Circle cx="8" cy="25" r="0.7" fill="#FF00FF" />
+      <Circle cx="5" cy="35" r="2" fill="#660066" />
+      <Circle cx="5" cy="35" r="1" fill="#FF00FF" />
+      
+      <Circle cx="45" cy="15" r="2" fill="#660066" />
+      <Circle cx="45" cy="15" r="1" fill="#FF00FF" />
+      <Circle cx="42" cy="25" r="1.5" fill="#660066" />
+      <Circle cx="42" cy="25" r="0.7" fill="#FF00FF" />
+      <Circle cx="45" cy="35" r="2" fill="#660066" />
+      <Circle cx="45" cy="35" r="1" fill="#FF00FF" />
+      
+      {/* Annihilation reaction indicators */}
+      <Path d="M25 18 L25 15" stroke="#FFFFFF" strokeWidth="0.5" />
+      <Path d="M25 35 L25 32" stroke="#FFFFFF" strokeWidth="0.5" />
+      <Path d="M18 25 L15 25" stroke="#FFFFFF" strokeWidth="0.5" />
+      <Path d="M35 25 L32 25" stroke="#FFFFFF" strokeWidth="0.5" />
+      
+      {/* Energy signatures */}
+      <Path d="M22 22 L28 28" stroke="#FFFFFF" strokeWidth="0.5" strokeDasharray="0.5,0.5" />
+      <Path d="M28 22 L22 28" stroke="#FFFFFF" strokeWidth="0.5" strokeDasharray="0.5,0.5" />
+      
+      {/* Control systems */}
+      <Circle cx="25" cy="10" r="4" fill="#333333" />
+      <Path d="M23 9 L27 9" stroke="#FF00FF" strokeWidth="0.5" />
+      <Path d="M23 11 L27 11" stroke="#FF00FF" strokeWidth="0.5" />
+      <Circle cx="25" cy="10" r="1" fill="#FF00FF" />
+      
+      {/* Stabilization feet */}
+      <Path d="M20 35 L15 45" fill="url(#antimatterHousing)" />
+      <Path d="M30 35 L35 45" fill="url(#antimatterHousing)" />
+      <Circle cx="15" cy="45" r="2" fill="#660066" />
+      <Circle cx="35" cy="45" r="2" fill="#660066" />
+      
+      {/* Particle emissions */}
+      <Circle cx="27" cy="20" r="0.3" fill="#FFFFFF" />
+      <Circle cx="23" cy="22" r="0.3" fill="#FFFFFF" />
+      <Circle cx="29" cy="26" r="0.3" fill="#FFFFFF" />
+      <Circle cx="21" cy="28" r="0.3" fill="#FFFFFF" />
+      <Circle cx="25" cy="24" r="0.3" fill="#FFFFFF" />
     </Svg>
   ),
 };

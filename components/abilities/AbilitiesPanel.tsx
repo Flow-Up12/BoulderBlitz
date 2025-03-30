@@ -196,9 +196,9 @@ const AbilitiesPanel = () => {
     >
       <Text style={styles.sectionTitle}>Special Abilities</Text>
       
-      {state.abilities.map(ability => (
+      {state.abilities.map((ability, index) => (
         <AbilityItem
-          key={ability.id}
+          key={`${ability.id}-${index}`}
           ability={ability}
           onBuy={() => handleBuyAbility(ability.id)}
           onActivate={() => handleActivateAbility(ability.id)}

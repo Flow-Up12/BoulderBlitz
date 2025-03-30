@@ -6,22 +6,20 @@ import {
   Dimensions,
   TouchableOpacity,
   Text,
-  ScrollView,
   ActivityIndicator,
-  Alert,
+
   BackHandler,
-  PanResponder,
+
   ImageBackground,
   Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FAB, Portal, Snackbar, IconButton, Surface, Title, Button } from 'react-native-paper';
+import { FAB,  Snackbar } from 'react-native-paper';
 import { useGameContext } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { initialState } from '../context/GameContext';
 
 // Components
 import { RockButton } from '../components/game/RockButton';
@@ -56,7 +54,8 @@ export default function GameScreen() {
   const maxShopHeight = screenHeight * 0.85;
   const minShopHeight = 70;
   
-  // Tutorial state
+  // Tutorial state - DISABLED due to crashes in production TestFlight builds
+  // This code is kept for reference but the tutorial will never be shown
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const tutorialOpacity = useRef(new Animated.Value(0)).current;
@@ -323,6 +322,9 @@ export default function GameScreen() {
   
   // Handle tutorial animations
   useEffect(() => {
+    // Skip this effect entirely if tutorial is disabled in state
+    if (!state.tutorialEnabled) return;
+    
     if (showTutorial) {
       try {
         Animated.timing(tutorialOpacity, {
@@ -336,10 +338,16 @@ export default function GameScreen() {
         setShowTutorial(false);
       }
     }
-  }, [tutorialStep, showTutorial]);
+  }, [tutorialStep, showTutorial, state.tutorialEnabled]);
 
   // Handle tutorial progression with actions
   const advanceTutorial = () => {
+    // Skip tutorial progression if disabled in state
+    if (!state.tutorialEnabled) {
+      setShowTutorial(false);
+      return;
+    }
+    
     try {
       const currentStep = tutorialSteps[tutorialStep];
       
@@ -376,12 +384,17 @@ export default function GameScreen() {
   useEffect(() => {
     const checkTutorial = async () => {
       try {
-        const tutorialCompleted = await AsyncStorage.getItem('tutorialCompleted');
-        // Only show tutorial if it hasn't been completed and game is loaded
-        setShowTutorial(!tutorialCompleted && !isLoading);
+        // Completely disable tutorial to prevent crashes
+        setShowTutorial(false);
+        
+        // Save that tutorial has been completed to prevent future attempts
+        try {
+          await AsyncStorage.setItem('tutorialCompleted', 'true');
+        } catch (error) {
+          console.error("Error saving tutorial completion status:", error);
+        }
       } catch (error) {
         console.error("Error checking tutorial status:", error);
-        // Default to not showing tutorial if there's an error
         setShowTutorial(false);
       }
     };
@@ -623,7 +636,8 @@ export default function GameScreen() {
           {snackbarMessage}
         </Snackbar>
 
-        {showTutorial && (
+        {/* Only render tutorial if explicitly enabled in state and local state */}
+        {state.tutorialEnabled && showTutorial && (
           <TouchableOpacity
             style={styles.tutorialContainer}
             activeOpacity={1}

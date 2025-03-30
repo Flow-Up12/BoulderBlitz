@@ -24,6 +24,9 @@ export function formatCoins(num: number): string {
  * Format a number with appropriate suffix (K, M, B, T) for display
  */
 export const formatNumber = (num: number): string => {
+  if (!num) {
+    return '0';
+  }
   if (num < 1000) {
     return num.toFixed(num % 1 === 0 ? 0 : 1);
   } else if (num < 1000000) {

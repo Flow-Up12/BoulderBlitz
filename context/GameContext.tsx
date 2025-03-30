@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState } from 'react-native';
+import { AppState, Dimensions } from 'react-native';
 import { supabase } from '../lib/supabase/client';
 import { useAuth } from './AuthContext';
 import { SoundManager } from '../utils/SoundManager';
@@ -101,6 +101,7 @@ export interface GameState {
   theme: string;
   rocks: Rock[];
   selectedRock: Rock;
+  selectedPickaxe: string; // ID of the currently equipped pickaxe
   upgrades: Upgrade[];
   autoMiners: AutoMiner[];
   specialUpgrades: SpecialUpgrade[];
@@ -117,6 +118,8 @@ export interface GameState {
   dataLoaded?: boolean; // Add this property
   version?: number; // Add version number for conflict resolution
   coinAnimations?: CoinAnimation[]; // Add coin animations
+  rebirthPoints?: number; // Added rebirth points
+  tutorialEnabled?: boolean; // Added tutorial flag
 }
 
 // Default game state
@@ -994,6 +997,7 @@ export const initialState: GameState = {
     ...initialRocks
   ],
   selectedRock: defaultRock,
+  selectedPickaxe: 'wooden-pickaxe',
   upgrades: [...initialUpgrades, ...additionalUpgrades],
   autoMiners: [...initialAutoMiners, ...additionalAutoMiners],
   specialUpgrades: initialSpecialUpgrades,
@@ -1001,18 +1005,20 @@ export const initialState: GameState = {
   abilities: initialAbilities,
   showPickaxes: true,
   lastSaved: Date.now(),
-  offlineProgressEnabled: false,
-  notificationsEnabled: false,
+  offlineProgressEnabled: true,
+  notificationsEnabled: true,
   soundEnabled: true,
   hapticsEnabled: true,
   _needsSave: false,
   dataLoaded: false,
+  rebirthPoints: 0,
+  tutorialEnabled: false,
 };
 
 // Actions
 type GameAction =
   | { type: 'CLICK_ROCK' }
-  | { type: 'CLICK_ROCK_WITH_ANIMATION'; payload: { x: number, y: number } }
+  | { type: 'CLICK_ROCK_WITH_ANIMATION'; payload: { x: number, y: number, isAutoTap?: boolean } }
   | { type: 'REMOVE_COIN_ANIMATION'; payload: string }
   | { type: 'BUY_UPGRADE'; payload: string }
   | { type: 'BUY_AUTO_MINER'; payload: string }
@@ -1026,12 +1032,14 @@ type GameAction =
   | { type: 'TOGGLE_NOTIFICATIONS'; payload: boolean }
   | { type: 'TOGGLE_SOUND'; payload: boolean }
   | { type: 'TOGGLE_HAPTICS'; payload: boolean }
+  | { type: 'TOGGLE_TUTORIAL'; payload: boolean }
   | { type: 'ABILITY_TICK'; payload: number }
   | { type: 'LOAD_SAVED_GAME'; payload: GameState }
   | { type: 'LOAD_GAME'; payload: GameState }
   | { type: 'MERGE_GAME_DATA'; payload: GameState }
   | { type: 'UNLOCK_ROCK'; payload: string }
   | { type: 'SELECT_ROCK'; payload: string }
+  | { type: 'SELECT_PICKAXE'; payload: string } // Add SELECT_PICKAXE action
   | { type: 'ACTIVATE_ABILITY'; payload: string }
   | { type: 'DEACTIVATE_ABILITY'; payload: string }
   | { type: 'UPGRADE_ABILITY'; payload: string }
@@ -1080,8 +1088,8 @@ interface GameProviderProps {
 export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [databaseError, setDatabaseError] = useState<string | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [databaseError, setDatabaseError] = useState<string | null>(null);
   const { authState } = useAuth();
   
   // Auto-mining cache to batch updates
@@ -1094,6 +1102,9 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     uiUpdateIntervalId: null
   });
 
+  // Auto-tap ability timer
+  const autoTapTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Store the state in a ref to access the latest state in intervals without dependencies
   const stateRef = useRef(state);
   useEffect(() => {
@@ -1214,25 +1225,57 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
   // Initialize sound manager with better error handling
   useEffect(() => {
-    if (state.soundEnabled) {
-      // Initialize with retry mechanism
-      const loadWithRetry = async (retries = 3) => {
-        try {
-          await SoundManager.loadSounds();
-          console.log('All sounds loaded successfully');
-        } catch (error) {
-          console.warn(`Error loading sounds (attempt ${4-retries}/3):`, error);
-          if (retries > 0) {
-            console.log(`Retrying sound load in 1 second...`);
-            setTimeout(() => loadWithRetry(retries - 1), 1000);
-          } else {
-            console.error('Failed to load sounds after multiple attempts');
+    // Create an unmounted flag to prevent state updates after unmount
+    let isUnmounted = false;
+    
+    // Initialize sound system with better handling
+    const initializeSounds = async () => {
+      try {
+        // Only load sounds if enabled in settings
+        if (state.soundEnabled) {
+          console.log('Initializing sound system...');
+          
+          // Try loading sounds with improved retry logic
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              await SoundManager.loadSounds();
+              if (!isUnmounted) {
+                console.log('Sound system initialized successfully');
+              }
+              break; // Exit retry loop on success
+            } catch (error) {
+              console.warn(`Sound initialization attempt ${attempt}/3 failed:`, error);
+              if (attempt < 3) {
+                // Wait before retrying with exponential backoff
+                await new Promise(r => setTimeout(r, attempt * 1000));
+              } else {
+                console.error('All sound initialization attempts failed');
+              }
+            }
           }
+        } else {
+          // If sounds are disabled, unload any existing sounds to free memory
+          await SoundManager.unloadAll();
         }
-      };
+      } catch (error) {
+        if (!isUnmounted) {
+          console.error('Error handling sound system:', error);
+        }
+      }
+    };
+    
+    // Initialize sound system
+    initializeSounds();
+    
+    // Cleanup function
+    return () => {
+      isUnmounted = true;
       
-      loadWithRetry();
-    }
+      // Unload sounds on unmount to prevent memory leaks
+      SoundManager.unloadAll().catch(e => 
+        console.warn('Error unloading sounds during cleanup:', e)
+      );
+    };
   }, [state.soundEnabled]);
 
   // Initialize or load saved game
@@ -1385,7 +1428,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       
       // First save locally
       await AsyncStorage.setItem('gameState', JSON.stringify(gameData));
-      console.log(`Game saved locally with ${gameData.coins} coins`);
+      // console.log(`Game saved locally with ${gameData.coins} coins`);
       
       // Only save to cloud if forced or for important events
       const shouldSaveToCloud = forceCloudSave || 
@@ -1639,6 +1682,61 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     }
   };
   
+  // Handle auto-tap ability
+  useEffect(() => {
+    // Safety check - make sure state is initialized
+    if (!state.abilities || state.abilities.length === 0) return;
+    
+    // Get the auto-tap ability
+    const autoTapAbility = state.abilities.find(a => a.id === 'auto-tap');
+    
+    // Safety check - make sure ability exists
+    if (!autoTapAbility) return;
+    
+    // Clean up previous timer if it exists
+    if (autoTapTimerRef.current) {
+      clearInterval(autoTapTimerRef.current);
+      autoTapTimerRef.current = null;
+    }
+    
+    // Check if auto-tap is active
+    if (autoTapAbility.active) {
+      // Calculate click interval based on taps per second (multiplier)
+      const clickIntervalMs = 1000 / autoTapAbility.multiplier;
+      
+      // Create a new timer that clicks at the specified rate
+      autoTapTimerRef.current = setInterval(() => {
+        try {
+          // Simulate a click at the center of the screen
+          const centerX = Dimensions.get('window').width / 2;
+          const centerY = Dimensions.get('window').height / 2;
+          
+          // Dispatch a rock click action
+          dispatch({ 
+            type: 'CLICK_ROCK_WITH_ANIMATION', 
+            payload: { 
+              x: centerX + (Math.random() * 20 - 10), // Add slight randomness
+              y: centerY + (Math.random() * 20 - 10),
+              isAutoTap: true // Flag this as an auto-tap click
+            } 
+          });
+        } catch (error) {
+          console.error('Error in auto-tap timer:', error);
+        }
+      }, clickIntervalMs);
+      
+      console.log(`Auto-tap activated at ${autoTapAbility.multiplier} taps/sec`);
+    }
+    
+    // Return cleanup function
+    return () => {
+      if (autoTapTimerRef.current) {
+        clearInterval(autoTapTimerRef.current);
+        autoTapTimerRef.current = null;
+      }
+    };
+  }, [state.abilities, state.cpc]); // Also depend on cpc to reflect changes in click value
+  
   return (
     <GameContext.Provider value={{ 
       state, 
@@ -1834,6 +1932,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
     
     case 'CLICK_ROCK_WITH_ANIMATION': {
+      const { x, y, isAutoTap = false } = action.payload;
+      
       // First do the same calculation as normal click
       let multiplier = 1;
       
@@ -1850,7 +1950,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       let comboBonus = 0;
       let newClickProgress = state.clickProgress;
       
-      if (state.specialUpgrades.find(u => u.id === 'click-combo' && u.owned)) {
+      // Only apply click combo for manual clicks, not auto-tap
+      if (!isAutoTap && state.specialUpgrades.find(u => u.id === 'click-combo' && u.owned)) {
         newClickProgress = (state.clickProgress + 1) % 10;
         if (newClickProgress === 0) {
           comboBonus = state.cpc * 10;
@@ -1864,8 +1965,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const newAnimation: CoinAnimation = {
         id: `coin-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         amount: coinsToAdd,
-        x: action.payload.x,
-        y: action.payload.y,
+        x: x,
+        y: y,
         timestamp: Date.now()
       };
       
@@ -1876,15 +1977,24 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...currentAnimations.slice(0, 9) // Keep only 9 previous animations max
       ];
       
-      // Play click sound
-      SoundManager.playSound('click', state.soundEnabled);
+      // Play click sound - but only 25% chance for auto-tap to reduce sound spam
+      if (!isAutoTap || Math.random() < 0.25) {
+        try {
+          // Use the click sound type - now properly typed
+          SoundManager.playSound('click', state.soundEnabled);
+        } catch (error) {
+          // Silently catch errors to prevent game disruption
+          console.warn('Error playing click sound:', error);
+        }
+      }
       
-      // Fast path for normal clicks (most common case)
-      if (newTotalClicks !== 1 && 
+      // Fast path for auto-tap clicks or non-milestone manual clicks
+      if (isAutoTap || (
+          newTotalClicks !== 1 && 
           newTotalClicks !== 100 && 
           newTotalClicks !== 1000 && 
           newTotalClicks !== 10000 && 
-          newTotalClicks !== 100000) {
+          newTotalClicks !== 100000)) {
         
         return {
           ...state,
@@ -1892,7 +2002,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           totalCoinsEarned: state.totalCoinsEarned + coinsToAdd,
           totalClicks: newTotalClicks,
           clickProgress: newClickProgress,
-          coinAnimations: newAnimations
+          coinAnimations: newAnimations,
+          _needsSave: isAutoTap ? false : (newTotalClicks % 100 === 0) // Save less frequently for auto-tap
         };
       }
       
@@ -1986,7 +2097,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       
       // Play purchase sound
-      SoundManager.playSound('purchase', state.soundEnabled);
+      try {
+        SoundManager.playSound('purchase', state.soundEnabled);
+      } catch (error) {
+        // Silently catch errors to prevent game disruption
+        console.warn('Error playing purchase sound:', error);
+      }
       
       const newUpgrades = state.upgrades.map(u => 
         u.id === upgradeId ? { ...u, owned: true } : u
@@ -2018,7 +2134,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       
       // Play purchase sound
-      SoundManager.playSound('purchase', state.soundEnabled);
+      try {
+        SoundManager.playSound('purchase', state.soundEnabled);
+      } catch (error) {
+        // Silently catch errors to prevent game disruption
+        console.warn('Error playing purchase sound:', error);
+      }
       
       const newAutoMiners = state.autoMiners.map(m => 
         m.id === minerId ? { 
@@ -2056,7 +2177,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       
       // Play purchase sound
-      SoundManager.playSound('purchase', state.soundEnabled);
+      try {
+        SoundManager.playSound('purchase', state.soundEnabled);
+      } catch (error) {
+        // Silently catch errors to prevent game disruption
+        console.warn('Error playing purchase sound:', error);
+      }
       
       const newSpecialUpgrades = state.specialUpgrades.map(u => 
         u.id === upgradeId ? { ...u, owned: true } : u
@@ -2082,7 +2208,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       
       // Play upgrade sound
-      SoundManager.playSound('upgrade', state.soundEnabled);
+      try {
+        SoundManager.playSound('upgrade', state.soundEnabled);
+      } catch (error) {
+        // Silently catch errors to prevent game disruption
+        console.warn('Error playing upgrade sound:', error);
+      }
       
       const newSpecialUpgrades = state.specialUpgrades.map(u => 
         u.id === upgradeId ? { ...u, owned: true, level: u.level + 1, upgradeCost: Math.floor(u.upgradeCost * 1.5) } : u
@@ -2202,6 +2333,31 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
     }
     
+    case 'SELECT_PICKAXE': {
+      const pickaxeId = action.payload;
+      
+      // Check if this pickaxe exists and is owned
+      const pickaxe = state.upgrades.find(u => u.id === pickaxeId && u.type === 'pickaxe');
+      
+      if (!pickaxe || !pickaxe.owned || pickaxeId === state.selectedPickaxe) {
+        return state;
+      }
+      
+      // Play sound when changing pickaxe
+      try {
+        SoundManager.playSound('click', state.soundEnabled);
+      } catch (error) {
+        // Silently catch errors to prevent game disruption
+        console.warn('Error playing click sound:', error);
+      }
+      
+      return {
+        ...state,
+        selectedPickaxe: pickaxeId,
+        _needsSave: true
+      };
+    }
+    
     case 'UNLOCK_ACHIEVEMENT': {
       const achievementId = action.payload;
       const achievement = state.achievements.find(a => a.id === achievementId);
@@ -2277,6 +2433,15 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         hapticsEnabled: action.payload,
+        _needsSave: true
+      };
+    }
+    
+    case 'TOGGLE_TUTORIAL': {
+      return {
+        ...state,
+        tutorialEnabled: action.payload,
+        _needsSave: true
       };
     }
     
@@ -2293,7 +2458,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       
       // Play rebirth sound
-      SoundManager.playSound('rebirth', state.soundEnabled);
+      try {
+        SoundManager.playSound('rebirth', state.soundEnabled);
+      } catch (error) {
+        // Silently catch errors to prevent game disruption
+        console.warn('Error playing rebirth sound:', error);
+      }
       
       // Award gold coins based on progress
       const goldCoinsToAward = Math.floor(Math.log10(state.totalCoinsEarned) - 8);
@@ -2410,7 +2580,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       
       // Play ability sound
-      SoundManager.playSound('ability', state.soundEnabled);
+      try {
+        SoundManager.playSound('ability', state.soundEnabled);
+      } catch (error) {
+        // Silently catch errors to prevent game disruption
+        console.warn('Error playing ability sound:', error);
+      }
       
       // Activate the ability
       const updatedAbilities = state.abilities.map(a => 
@@ -2545,6 +2720,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         return state;
       }
       
+      // Track which abilities are being deactivated this tick
+      const deactivatingAbilities = [];
+      
       // Update each ability
       const updatedAbilities = state.abilities.map(a => {
         // If ability is active, decrease time remaining
@@ -2553,6 +2731,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           
           // If time just ran out, deactivate and start cooldown
           if (newTimeRemaining === 0 && a.timeRemaining > 0) {
+            // Track that this ability is deactivating
+            deactivatingAbilities.push(a.id);
+            
             return {
               ...a,
               active: false,
@@ -2589,12 +2770,26 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         (!a.active && updatedAbilities.find(ua => ua.id === a.id)?.active === true)
       );
       
-      // Look for specific ability status changes for special handling
-      const autoTapDeactivated = state.abilities.find(a => a.id === 'auto-tap' && a.active) && 
-        !updatedAbilities.find(a => a.id === 'auto-tap')?.active;
+      // Check specifically if auto-tap or other abilities are deactivating
+      const autoTapDeactivated = deactivatingAbilities.includes('auto-tap');
+      const coinScatterDeactivated = deactivatingAbilities.includes('coin-scatter');
       
-      const coinScatterDeactivated = state.abilities.find(a => a.id === 'coin-scatter' && a.active) && 
-        !updatedAbilities.find(a => a.id === 'coin-scatter')?.active;
+      // Special handling for deactivated abilities
+      if (deactivatingAbilities.length > 0) {
+        try {
+          // Play sound effect for ability ending
+          SoundManager.playSound('ability', state.soundEnabled);
+        } catch (error) {
+          // Silently catch errors to prevent game disruption
+          console.warn('Error playing ability deactivation sound:', error);
+        }
+        
+        if (autoTapDeactivated) {
+          console.log('Auto-tap ability deactivated');
+          // Note: The interval for auto-tap is handled by the useEffect
+          // which will detect the change in abilities and clear the timer
+        }
+      }
       
       // Always recalculate CPC and CPS to ensure ability effects are properly applied
       const newCPC = calculateTotalCPC({
@@ -2607,20 +2802,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         abilities: updatedAbilities
       });
       
-      // Special handling for ability deactivations
-      if (autoTapDeactivated || coinScatterDeactivated) {
-        // Play sound for ability ending
-        SoundManager.playSound('ability', state.soundEnabled);
-        console.log(`Ability deactivated - New CPC: ${newCPC}, New CPS: ${newCPS}`);
-      }
-      
       // Always update CPC and CPS to ensure they're kept in sync with abilities
       return {
         ...state,
         abilities: updatedAbilities,
         cpc: newCPC,
         cps: newCPS,
-        _needsSave: activeAbilitiesChanged, // Only mark for save if something important changed
+        _needsSave: activeAbilitiesChanged || deactivatingAbilities.length > 0, // Save when abilities change
       };
     }
     
@@ -2649,7 +2837,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         coins: state.coins + coinsToAdd,
         totalCoinsEarned: state.totalCoinsEarned + coinsToAdd,
-        _needsSave: state._needsSave // Don't change save flag
+        _needsSave: state._needsSave || coinsToAdd > 1000 // Mark for save if significant coins added
       };
     }
     

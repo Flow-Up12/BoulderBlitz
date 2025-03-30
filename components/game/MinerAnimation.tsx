@@ -9,8 +9,15 @@ export type MinerAnimationProps = {
   pickaxeType?: string;
 };
 
-// Function to get the best pickaxe based on owned upgrades
+
 const getBestPickaxe = (upgrades: any[]) => {
+
+  // 'quantum-disruptor': 'quantum-disruptor.png',
+  // 'antimatter-crusher': 'antimatter-crusher.png',
+  // 'graviton-hammer': 'graviton-hammer.png',
+  // 'dark-energy-drill': 'dark-energy-drill.png',
+  // 'cosmic-excavator': 'cosmic-excavator.png',
+  // 'infinity-pickaxe': 'infinity-pickaxe.png',
   const pickaxeTypes = [
     { id: 'quantum-pickaxe', icon: 'quantum-disruptor.png' },
     { id: 'plasma-pickaxe', icon: 'plasma-cutter.png' },
@@ -21,7 +28,12 @@ const getBestPickaxe = (upgrades: any[]) => {
     { id: 'iron-pickaxe', icon: 'iron-pickaxe.png' },
     { id: 'copper-pickaxe', icon: 'copper-pickaxe.png' },
     { id: 'stone-pickaxe', icon: 'stone-pickaxe.png' },
-    { id: 'wooden-pickaxe', icon: 'wooden-pickaxe.png' }
+    { id: 'wooden-pickaxe', icon: 'wooden-pickaxe.png' },
+    { id: 'antimatter-crusher', icon: 'antimatter-crusher.png' },
+    { id: 'graviton-hammer', icon: 'graviton-hammer.png' },
+    { id: 'dark-energy-drill', icon: 'dark-energy-drill.png' },
+    { id: 'cosmic-excavator', icon: 'cosmic-excavator.png' },
+    { id: 'infinity-pickaxe', icon: 'infinity-pickaxe.png' },
   ];
   
   for (const type of pickaxeTypes) {
