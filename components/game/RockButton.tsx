@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Animated, Dimensions, Platform, Vibration } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Animated, Dimensions, Platform, Vibration, Image, Easing } from 'react-native';
 import { useGameContext } from '../../context/GameContext';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,6 +7,7 @@ import SvgRock from './SvgRock';
 import MinerIcon from './MinerIcon';
 import MinerAnimation from './MinerAnimation';
 import { formatScientific } from '../../utils/formatters';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 const ROCK_SIZE = Math.min(width, height) * 0.5; // Make rock 50% of smallest screen dimension
@@ -44,6 +45,7 @@ export const RockButton = React.memo(() => {
   const [showCombo, setShowCombo] = useState(false);
   const [showCoinEarned, setShowCoinEarned] = useState(false);
   const [lastClickValue, setLastClickValue] = useState(0);
+  const [lastPosition, setLastPosition] = useState({ x: 0, y: 0 });
   
   // Animation refs
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -57,6 +59,9 @@ export const RockButton = React.memo(() => {
   const lastClickTime = useRef(0);
   const comboTimeout = useRef(null);
   const growthTimeout = useRef(null);
+  
+  // Animation arrays for slice effects
+  const sliceAnimations = useRef([]);
   
   // Cache animations to avoid recreating them on each render
   const animations = useRef({
@@ -148,13 +153,20 @@ export const RockButton = React.memo(() => {
     };
   }, []);
   
-  const handlePress = useCallback(() => {
+  const handlePress = useCallback((event) => {
     // Haptic feedback
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } else {
       Vibration.vibrate(10);
     }
+    
+    // Get the touch position for animations
+    const touchX = event.nativeEvent.locationX;
+    const touchY = event.nativeEvent.locationY;
+    
+    // Set the last position for coin animations
+    setLastPosition({ x: touchX, y: touchY });
     
     // Store the current click value for display
     setLastClickValue(state.cpc);
@@ -222,8 +234,95 @@ export const RockButton = React.memo(() => {
     lastClickTime.current = now;
     
     // Update game state
-    dispatch({ type: 'CLICK_ROCK' });
+    dispatch({ 
+      type: 'CLICK_ROCK_WITH_ANIMATION', 
+      payload: { x: touchX, y: touchY } 
+    });
+    
+    // Create the slice animation
+    createSliceAnimation(touchX, touchY);
   }, [state.cpc, state.clickProgress]);
+  
+  // Function to create a slice animation
+  const createSliceAnimation = (x, y) => {
+    // Create a new animated value for the slice
+    const sliceOpacity = new Animated.Value(1);
+    const sliceScale = new Animated.Value(0.5);
+    const sliceRotate = new Animated.Value(0);
+    
+    // Create random angle for the slice
+    const angle = Math.random() * 360;
+    
+    // Add to array
+    const sliceId = Date.now().toString() + Math.random().toString();
+    sliceAnimations.current.push({
+      id: sliceId,
+      x,
+      y,
+      opacity: sliceOpacity,
+      scale: sliceScale,
+      rotate: sliceRotate,
+      angle
+    });
+    
+    // Run animation
+    Animated.parallel([
+      Animated.timing(sliceOpacity, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sliceScale, {
+        toValue: 1.5,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sliceRotate, {
+        toValue: 1, // 1 full rotation
+        duration: 600,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      // Remove the animation when complete
+      sliceAnimations.current = sliceAnimations.current.filter(
+        slice => slice.id !== sliceId
+      );
+    });
+  };
+  
+  // Render the slice effects
+  const renderSliceEffects = () => {
+    return sliceAnimations.current.map(slice => {
+      const rotateInterpolation = slice.rotate.interpolate({
+        inputRange: [0, 1],
+        outputRange: [`${slice.angle}deg`, `${slice.angle + 90}deg`]
+      });
+      
+      return (
+        <Animated.View
+          key={slice.id}
+          style={[
+            styles.sliceEffect,
+            {
+              left: slice.x - 50, // Center on click point
+              top: slice.y - 50,
+              opacity: slice.opacity,
+              transform: [
+                { scale: slice.scale },
+                { rotate: rotateInterpolation }
+              ]
+            }
+          ]}
+        >
+          <MaterialCommunityIcons 
+            name="sword-cross" 
+            size={40} 
+            color="#FFD700" 
+          />
+        </Animated.View>
+      );
+    });
+  };
   
   // Cache rock color calculation
   const rockColor = useMemo(() => {
@@ -396,6 +495,9 @@ export const RockButton = React.memo(() => {
           </Text>
         </Animated.View>
       )}
+      
+      {/* Render slice effects */}
+      {renderSliceEffects()}
     </View>
   );
 });
@@ -551,4 +653,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
+  sliceEffect: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+  }
 }); 

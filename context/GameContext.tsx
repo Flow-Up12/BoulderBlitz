@@ -46,6 +46,10 @@ export type SpecialUpgrade = {
   cost: number;
   effect: string;
   owned: boolean;
+  level?: number;    // Current level of the upgrade
+  maxLevel?: number; // Maximum level
+  upgradeCost?: number; // Cost to upgrade to next level
+  effectMultiplier?: number; // Multiplier that increases with each level
 };
 
 export type Achievement = {
@@ -295,83 +299,148 @@ const initialSpecialUpgrades: SpecialUpgrade[] = [
   {
     id: 'double-click',
     name: 'Double Click',
-    description: 'Double all click earnings',
+    description: 'Doubles your click power, upgradeable',
     cost: 1,
     effect: 'doubles_cpc',
     owned: false,
+    level: 1,
+    maxLevel: 5,
+    upgradeCost: 3,
+    effectMultiplier: 2 // Starts at 2x, increases with levels
   },
   {
     id: 'auto-miner-boost',
     name: 'Auto Miner Boost',
-    description: 'Increases auto miner efficiency by 50%',
+    description: 'Increases auto miner efficiency, upgradeable',
     cost: 2,
     effect: 'boosts_auto_miners',
     owned: false,
+    level: 1,
+    maxLevel: 5,
+    upgradeCost: 4,
+    effectMultiplier: 0.5 // Starts at 50%, increases with levels
   },
   {
     id: 'click-combo',
     name: 'Click Combo',
-    description: 'Every 10 clicks in a row gives bonus coins',
+    description: 'Every 10 clicks gives bonus coins, upgradeable',
     cost: 3,
     effect: 'click_combo',
     owned: false,
+    level: 1,
+    maxLevel: 5,
+    upgradeCost: 5,
+    effectMultiplier: 10 // Starts at 10x CPC, increases with levels
   },
   {
     id: 'offline-progress',
     name: 'Offline Progress',
-    description: 'Earn coins while away from the game',
+    description: 'Earn coins while away, upgradeable',
     cost: 5,
     effect: 'offline_progress',
     owned: false,
+    level: 1,
+    maxLevel: 3,
+    upgradeCost: 10,
+    effectMultiplier: 0.5 // Starts at 50% efficiency, increases with levels
   },
   {
     id: 'golden-gloves',
     name: 'Golden Gloves',
-    description: 'Increases click power by 25%',
+    description: 'Increases click power, upgradeable',
     cost: 3,
     effect: 'increases_cpc_by_25_percent',
     owned: false,
+    level: 1,
+    maxLevel: 5,
+    upgradeCost: 5,
+    effectMultiplier: 0.25 // Starts at 25%, increases with levels
   },
   {
     id: 'miners-helmet',
     name: 'Miner\'s Helmet',
-    description: 'Auto miners work 25% faster',
+    description: 'Auto miners work faster, upgradeable',
     cost: 4,
     effect: 'increases_cps_by_25_percent',
     owned: false,
+    level: 1,
+    maxLevel: 5,
+    upgradeCost: 6,
+    effectMultiplier: 0.25 // Starts at 25%, increases with levels
   },
   {
     id: 'cosmic-drill',
     name: 'Cosmic Drill',
-    description: 'Triples the effect of all pickaxe upgrades',
+    description: 'Multiplies pickaxe effects, upgradeable',
     cost: 10,
     effect: 'triples_pickaxe_effects',
     owned: false,
+    level: 1,
+    maxLevel: 4,
+    upgradeCost: 15,
+    effectMultiplier: 3 // Starts at 3x, increases with levels
   },
   {
     id: 'lucky-charm',
     name: 'Lucky Charm',
-    description: '10% chance to get double coins from each click',
+    description: 'Chance for double coins per click, upgradeable',
     cost: 5,
     effect: 'chance_for_double_coins',
     owned: false,
+    level: 1,
+    maxLevel: 5,
+    upgradeCost: 8,
+    effectMultiplier: 0.1 // Starts at 10% chance, increases with levels
   },
   {
     id: 'time-warp',
     name: 'Time Warp Device',
-    description: 'Abilities recharge 50% faster',
+    description: 'Abilities recharge faster, upgradeable',
     cost: 7,
     effect: 'faster_ability_cooldown',
     owned: false,
+    level: 1,
+    maxLevel: 4,
+    upgradeCost: 10,
+    effectMultiplier: 0.5 // Starts at 50% faster, increases with levels
   },
   {
     id: 'quantum-compressor',
     name: 'Quantum Compressor',
-    description: 'Condenses rebirth requirements by 20%',
+    description: 'Reduces rebirth requirements, upgradeable',
     cost: 15,
     effect: 'easier_rebirth',
     owned: false,
+    level: 1,
+    maxLevel: 3,
+    upgradeCost: 20,
+    effectMultiplier: 0.2 // Starts at 20% reduction, increases with levels
   },
+  // New special upgrades
+  {
+    id: 'cosmic-magnetism',
+    name: 'Cosmic Magnetism',
+    description: 'Automatically collects coins near clicks',
+    cost: 8,
+    effect: 'auto_collect_coins',
+    owned: false,
+    level: 1,
+    maxLevel: 3,
+    upgradeCost: 12,
+    effectMultiplier: 0.3 // Starts at 30% radius, increases with levels
+  },
+  {
+    id: 'critical-strikes',
+    name: 'Critical Strikes',
+    description: 'Chance for critical clicks that do massive damage',
+    cost: 12,
+    effect: 'critical_strike_chance',
+    owned: false,
+    level: 1,
+    maxLevel: 5,
+    upgradeCost: 18,
+    effectMultiplier: 0.05 // Starts at 5% chance, increases with levels
+  }
 ];
 
 const initialAbilities: Ability[] = [
@@ -527,6 +596,13 @@ const newAchievements: Achievement[] = [
     unlocked: false,
     reward: 50000,
   },
+  {
+    id: 'pickaxe-master',
+    name: 'Pickaxe Master',
+    description: 'Buy all pickaxes',
+    unlocked: false,
+    reward: 2000,
+  }
 ];
 
 const initialAchievements: Achievement[] = [
@@ -750,6 +826,57 @@ const additionalAutoMiners: AutoMiner[] = [
     owned: false,
     quantity: 0,
     icon: 'black-hole-miner.png'
+  },
+  // New advanced miners
+  {
+    id: 'quantum-miner',
+    name: 'Quantum Miner',
+    description: 'Mines 500,000 coins per second using quantum tunneling',
+    cost: 5000000000,
+    cps: 500000,
+    owned: false,
+    quantity: 0,
+    icon: 'quantum-miner.png'
+  },
+  {
+    id: 'antimatter-miner',
+    name: 'Antimatter Miner',
+    description: 'Mines 2,000,000 coins per second using antimatter reactions',
+    cost: 25000000000,
+    cps: 2000000,
+    owned: false,
+    quantity: 0,
+    icon: 'antimatter-miner.png'
+  },
+  {
+    id: 'dimensional-miner',
+    name: 'Dimensional Miner',
+    description: 'Mines 10,000,000 coins per second by accessing parallel dimensions',
+    cost: 100000000000,
+    cps: 10000000,
+    owned: false,
+    quantity: 0,
+    icon: 'dimensional-miner.png'
+  },
+  {
+    id: 'cosmic-miner',
+    name: 'Cosmic Miner',
+    description: 'Mines 50,000,000 coins per second using cosmic energy',
+    cost: 500000000000,
+    cps: 50000000,
+    owned: false,
+    quantity: 0,
+    icon: 'cosmic-miner.png'
+  },
+  {
+    id: 'infinity-miner',
+    name: 'Infinity Miner',
+    description: 'Mines 250,000,000 coins per second by harnessing the power of infinity',
+    cost: 1000000000000,
+    cps: 250000000,
+    owned: false,
+    quantity: 0,
+    icon: 'infinity-miner.png'
   }
 ];
 
@@ -794,6 +921,57 @@ const additionalUpgrades: Upgrade[] = [
     owned: false,
     type: 'pickaxe',
     icon: 'quantum-disruptor.png'
+  },
+  // New advanced pickaxes
+  {
+    id: 'antimatter-crusher',
+    name: 'Antimatter Crusher',
+    description: 'Harnesses antimatter to completely obliterate rocks',
+    cost: 5000000000,
+    cpcIncrease: 1500000,
+    owned: false,
+    type: 'pickaxe',
+    icon: 'antimatter-crusher.png'
+  },
+  {
+    id: 'graviton-hammer',
+    name: 'Graviton Hammer',
+    description: 'Creates localized gravity wells to crush rocks',
+    cost: 25000000000,
+    cpcIncrease: 7500000,
+    owned: false,
+    type: 'pickaxe',
+    icon: 'graviton-hammer.png'
+  },
+  {
+    id: 'dark-energy-drill',
+    name: 'Dark Energy Drill',
+    description: 'Harnesses the power of dark energy to destroy rocks',
+    cost: 100000000000,
+    cpcIncrease: 30000000,
+    owned: false,
+    type: 'pickaxe',
+    icon: 'dark-energy-drill.png'
+  },
+  {
+    id: 'cosmic-excavator',
+    name: 'Cosmic Excavator',
+    description: 'Channels cosmic energy from across the universe',
+    cost: 500000000000,
+    cpcIncrease: 150000000,
+    owned: false,
+    type: 'pickaxe',
+    icon: 'cosmic-excavator.png'
+  },
+  {
+    id: 'infinity-pickaxe',
+    name: 'Infinity Pickaxe',
+    description: 'The ultimate pickaxe, forged in the heart of a neutron star',
+    cost: 1000000000000,
+    cpcIncrease: 1000000000,
+    owned: false,
+    type: 'pickaxe',
+    icon: 'infinity-pickaxe.png'
   }
 ];
 
@@ -839,6 +1017,7 @@ type GameAction =
   | { type: 'BUY_UPGRADE'; payload: string }
   | { type: 'BUY_AUTO_MINER'; payload: string }
   | { type: 'BUY_SPECIAL_UPGRADE'; payload: string }
+  | { type: 'UPGRADE_SPECIAL_UPGRADE'; payload: string }
   | { type: 'BUY_ABILITY'; payload: string }
   | { type: 'UNLOCK_ACHIEVEMENT'; payload: string }
   | { type: 'MARK_ACHIEVEMENT_SHOWN'; payload: string }
@@ -1888,6 +2067,32 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         goldCoins: state.goldCoins - upgrade.cost,
         specialUpgrades: newSpecialUpgrades,
         _needsSave: true // Save on special upgrade purchase
+      };
+      
+      // Check for achievements
+      return checkAchievements(newState);
+    }
+    
+    case 'UPGRADE_SPECIAL_UPGRADE': {
+      const upgradeId = action.payload;
+      const upgrade = state.specialUpgrades.find(u => u.id === upgradeId);
+      
+      if (!upgrade || upgrade.owned || state.goldCoins < upgrade.upgradeCost) {
+        return state;
+      }
+      
+      // Play upgrade sound
+      SoundManager.playSound('upgrade', state.soundEnabled);
+      
+      const newSpecialUpgrades = state.specialUpgrades.map(u => 
+        u.id === upgradeId ? { ...u, owned: true, level: u.level + 1, upgradeCost: Math.floor(u.upgradeCost * 1.5) } : u
+      );
+      
+      const newState = {
+        ...state,
+        goldCoins: state.goldCoins - upgrade.upgradeCost,
+        specialUpgrades: newSpecialUpgrades,
+        _needsSave: true // Save on upgrade purchase
       };
       
       // Check for achievements

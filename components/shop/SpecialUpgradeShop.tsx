@@ -13,6 +13,40 @@ type SpecialUpgradeItemProps = {
 };
 
 const SpecialUpgradeItem = ({ upgrade, onPress, disabled }: SpecialUpgradeItemProps) => {
+  const { state, dispatch } = useGameContext();
+
+  const handleUpgrade = (e) => {
+    e.stopPropagation(); // Prevent triggering the parent touchable
+    dispatch({ 
+      type: 'UPGRADE_SPECIAL_UPGRADE', 
+      payload: upgrade.id 
+    });
+  };
+
+  // Calculate the effect description based on level
+  const getEffectDescription = (effectId: string, level: number = 1, multiplier: number = 1): string => {
+    const baseDescription = {
+      'doubles_cpc': `${2 * level}x click power`,
+      'boosts_auto_miners': `+${50 * level}% auto miner efficiency`,
+      'click_combo': `${10 * level}x CPC on every 10th click`,
+      'offline_progress': `${50 * level}% offline earnings`,
+      'increases_cpc_by_25_percent': `+${25 * level}% click power`,
+      'increases_cps_by_25_percent': `+${25 * level}% auto miner speed`,
+      'triples_pickaxe_effects': `${3 * level}x pickaxe effects`,
+      'chance_for_double_coins': `${10 * level}% chance for double coins`,
+      'faster_ability_cooldown': `${50 * level}% faster ability cooldowns`,
+      'easier_rebirth': `${20 * level}% easier rebirth`,
+      'auto_collect_coins': `${30 * level}% larger coin collection radius`,
+      'critical_strike_chance': `${5 * level}% chance for critical hits`
+    };
+    
+    return baseDescription[effectId] || effectId;
+  };
+  
+  const canUpgrade = upgrade.owned && 
+                     upgrade.level < upgrade.maxLevel && 
+                     state.goldCoins >= upgrade.upgradeCost;
+  
   return (
     <TouchableOpacity 
       style={[
@@ -21,7 +55,7 @@ const SpecialUpgradeItem = ({ upgrade, onPress, disabled }: SpecialUpgradeItemPr
         upgrade.owned ? styles.ownedUpgrade : null
       ]}
       onPress={onPress}
-      disabled={disabled || upgrade.owned}
+      disabled={disabled || (upgrade.owned && !canUpgrade)}
     >
       <View style={styles.upgradeIcon}>
         <MaterialCommunityIcons 
@@ -32,9 +66,14 @@ const SpecialUpgradeItem = ({ upgrade, onPress, disabled }: SpecialUpgradeItemPr
       </View>
       
       <View style={styles.upgradeContent}>
-        <Text style={styles.upgradeName}>{upgrade.name}</Text>
+        <View style={styles.nameContainer}>
+          <Text style={styles.upgradeName}>{upgrade.name}</Text>
+          {upgrade.owned && (
+            <Text style={styles.levelText}>Level {upgrade.level}/{upgrade.maxLevel}</Text>
+          )}
+        </View>
         <Text style={styles.upgradeDescription}>{upgrade.description}</Text>
-        <Text style={styles.upgradeEffect}>{getEffectDescription(upgrade.effect)}</Text>
+        <Text style={styles.upgradeEffect}>{getEffectDescription(upgrade.effect, upgrade.level, upgrade.effectMultiplier)}</Text>
         
         {!upgrade.owned && (
           <View style={styles.costContainer}>
@@ -46,9 +85,31 @@ const SpecialUpgradeItem = ({ upgrade, onPress, disabled }: SpecialUpgradeItemPr
           </View>
         )}
         
-        {upgrade.owned && (
-          <View style={styles.ownedBadge}>
-            <Text style={styles.ownedText}>Owned</Text>
+        {upgrade.owned && upgrade.level < upgrade.maxLevel && (
+          <View style={styles.upgradeButtonContainer}>
+            <View style={styles.costContainer}>
+              <CoinDisplay 
+                value={upgrade.upgradeCost} 
+                size="small"
+                isGold={true}
+              />
+            </View>
+            <TouchableOpacity 
+              style={[
+                styles.upgradeButton,
+                !canUpgrade && styles.disabledUpgradeButton
+              ]}
+              onPress={handleUpgrade}
+              disabled={!canUpgrade}
+            >
+              <Text style={styles.upgradeButtonText}>Upgrade</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {upgrade.owned && upgrade.level >= upgrade.maxLevel && (
+          <View style={styles.maxLevelBadge}>
+            <Text style={styles.maxLevelText}>Maximum Level</Text>
           </View>
         )}
       </View>
@@ -213,22 +274,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-});
-
-// Add this helper function to convert effect IDs into readable text
-const getEffectDescription = (effectId: string): string => {
-  const effectMap = {
-    'doubles_cpc': 'Doubles click power',
-    'boosts_auto_miners': 'Auto miners work 50% faster',
-    'click_combo': 'Every 10 clicks gives 10x CPC bonus',
-    'offline_progress': 'Earn coins while away',
-    'increases_cpc_by_25_percent': '25% boost to click power',
-    'increases_cps_by_25_percent': '25% boost to auto miners',
-    'triples_pickaxe_effects': 'Triple effect of all pickaxes',
-    'chance_for_double_coins': '10% chance for double coins per click',
-    'faster_ability_cooldown': '50% faster ability cooldowns',
-    'easier_rebirth': '20% less coins needed for rebirth'
-  };
-  
-  return effectMap[effectId] || effectId;
-}; 
+  nameContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  levelText: {
+    fontSize: 12,
+    color: '#FFD700',
+    fontWeight: 'bold',
+  },
+  upgradeButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  upgradeButton: {
+    backgroundColor: '#7B5F00',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 4,
+  },
+  disabledUpgradeButton: {
+    backgroundColor: '#3A3A3A',
+    opacity: 0.7,
+  },
+  upgradeButtonText: {
+    color: '#FFD700',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  maxLevelBadge: {
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#4A3800',
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  maxLevelText: {
+    color: '#FFD700',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+}); 

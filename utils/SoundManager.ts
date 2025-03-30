@@ -1,6 +1,6 @@
 import { Audio } from 'expo-av';
 
-type SoundType = 'achievement' | 'purchase' | 'rebirth' | 'ability' | 'click';
+type SoundType = 'achievement' | 'purchase' | 'rebirth' | 'ability' | 'click' | 'upgrade';
 
 // Track loaded sounds
 const soundCache: Record<string, Audio.Sound> = {};
@@ -14,7 +14,8 @@ export const SoundManager = {
         this.loadSound('purchase'),
         this.loadSound('rebirth'),
         this.loadSound('ability'),
-        this.loadSound('click')
+        this.loadSound('click'),
+        this.loadSound('upgrade')
       ]);
       console.log('All sounds loaded successfully');
     } catch (error) {
@@ -100,6 +101,9 @@ export const SoundManager = {
       case 'click':
         // Reuse purchase sound for click for now
         return require('../assets/sounds/purchase.mp3');
+      case 'upgrade':
+        // Reuse achievement sound for upgrade
+        return require('../assets/sounds/achievement.mp3');
       default:
         return require('../assets/sounds/purchase.mp3');
     }
