@@ -1,11 +1,20 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import Svg, { Path, Circle, G, Rect, Defs, LinearGradient, Stop, RadialGradient, Ellipse, Line, Polygon } from 'react-native-svg';
+import { View, StyleSheet, Text } from 'react-native';
+import Svg, { Path, Circle, G, Rect, Defs, LinearGradient, Stop, RadialGradient, Ellipse, Line, Polygon, Text as SvgText } from 'react-native-svg';
 
 export type MinerIconProps = {
   size: number;
   position?: 'left' | 'right' | 'top' | 'bottom' | 'none';
   minerType: string;
+};
+
+// Helper function to make a safe G component that doesn't cause text issues
+const SafeG = (props: any) => {
+  return (
+    <Text>
+      <G {...props} />
+    </Text>
+  );
 };
 
 // Define SVG icons for each miner type
@@ -290,15 +299,15 @@ const minerSvgIcons = {
       <Circle cx="25" cy="25" r="2" fill="#FFFFFF" />
       
       {/* Quantum energy rings dynamically rotating */}
-      <G transform="rotate(0, 25, 25)">
+      <SafeG transform="rotate(0, 25, 25)">
         <Circle cx="25" cy="25" r="19" fill="none" stroke="#00FFFF" strokeWidth="0.5" strokeDasharray="3,3" />
-      </G>
-      <G transform="rotate(30, 25, 25)">
+      </SafeG>
+      <SafeG transform="rotate(30, 25, 25)">
         <Circle cx="25" cy="25" r="17" fill="none" stroke="#00FFFF" strokeWidth="0.5" strokeDasharray="2,2" />
-      </G>
-      <G transform="rotate(60, 25, 25)">
+      </SafeG>
+      <SafeG transform="rotate(60, 25, 25)">
         <Circle cx="25" cy="25" r="15" fill="none" stroke="#00FFFF" strokeWidth="0.5" strokeDasharray="1,1" />
-      </G>
+      </SafeG>
       
       {/* Quantum energy pathways */}
       <Path d="M25 5 C40 15, 40 35, 25 45" fill="none" stroke="#00FFFF" strokeWidth="1.2" />
@@ -311,14 +320,14 @@ const minerSvgIcons = {
       <Path d="M10 40 L40 10" fill="none" stroke="#00FFFF" strokeWidth="0.8" strokeDasharray="2,2" />
       
       {/* Energy particles around the quantum field */}
-      <G>
+      <SafeG>
         <Circle cx="25" cy="5" r="1.5" fill="#FFFFFF" opacity="0.9" />
         <Circle cx="45" cy="25" r="1.5" fill="#FFFFFF" opacity="0.9" />
         <Circle cx="25" cy="45" r="1.5" fill="#FFFFFF" opacity="0.9" />
         <Circle cx="5" cy="25" r="1.5" fill="#FFFFFF" opacity="0.9" />
-      </G>
+      </SafeG>
       
-      <G>
+      <SafeG>
         <Circle cx="15" cy="10" r="1" fill="#00FFFF" opacity="0.8" />
         <Circle cx="35" cy="10" r="1" fill="#00FFFF" opacity="0.8" />
         <Circle cx="40" cy="15" r="1" fill="#00FFFF" opacity="0.8" />
@@ -327,10 +336,10 @@ const minerSvgIcons = {
         <Circle cx="15" cy="40" r="1" fill="#00FFFF" opacity="0.8" />
         <Circle cx="10" cy="35" r="1" fill="#00FFFF" opacity="0.8" />
         <Circle cx="10" cy="15" r="1" fill="#00FFFF" opacity="0.8" />
-      </G>
+      </SafeG>
       
       {/* Small energy bursts */}
-      <G>
+      <SafeG>
         <Circle cx="20" cy="15" r="0.7" fill="#FFFFFF" />
         <Circle cx="30" cy="15" r="0.7" fill="#FFFFFF" />
         <Circle cx="15" cy="20" r="0.7" fill="#FFFFFF" />
@@ -339,15 +348,15 @@ const minerSvgIcons = {
         <Circle cx="30" cy="35" r="0.7" fill="#FFFFFF" />
         <Circle cx="15" cy="30" r="0.7" fill="#FFFFFF" />
         <Circle cx="35" cy="30" r="0.7" fill="#FFFFFF" />
-      </G>
+      </SafeG>
       
       {/* Central energy explosion effect */}
-      <G>
+      <SafeG>
         <Path d="M25 20 L27 17 L25 15 L23 17 Z" fill="#FFFFFF" opacity="0.9" />
         <Path d="M25 30 L27 33 L25 35 L23 33 Z" fill="#FFFFFF" opacity="0.9" />
         <Path d="M20 25 L17 27 L15 25 L17 23 Z" fill="#FFFFFF" opacity="0.9" />
         <Path d="M30 25 L33 27 L35 25 L33 23 Z" fill="#FFFFFF" opacity="0.9" />
-      </G>
+      </SafeG>
       
       {/* Hyperdimensional field indicators */}
       <Circle cx="25" cy="25" r="12" fill="none" stroke="#FFFFFF" strokeWidth="0.2" strokeDasharray="0.5,0.5" />
@@ -357,17 +366,17 @@ const minerSvgIcons = {
   'nano-miner.png': (size: number) => (
     <Svg width={size} height={size} viewBox="0 0 50 50">
       <Circle cx="25" cy="25" r="15" fill="#32CD32" opacity="0.5" />
-      <G fill="#00FF00">
+      <SafeG fill="#00FF00">
         <Circle cx="25" cy="10" r="3" />
         <Circle cx="40" cy="25" r="3" />
         <Circle cx="25" cy="40" r="3" />
         <Circle cx="10" cy="25" r="3" />
-      </G>
-      <G fill="none" stroke="#00FF00" strokeWidth="1">
+      </SafeG>
+      <SafeG fill="none" stroke="#00FF00" strokeWidth="1">
         <Path d="M25 10 L40 25 L25 40 L10 25 Z" />
         <Path d="M25 10 L25 40" />
         <Path d="M10 25 L40 25" />
-      </G>
+      </SafeG>
       <Circle cx="25" cy="25" r="5" fill="#228B22" />
       <Circle cx="25" cy="25" r="2" fill="#ADFF2F" />
     </Svg>
@@ -378,12 +387,12 @@ const minerSvgIcons = {
       <Circle cx="25" cy="25" r="15" fill="#8A2BE2" opacity="0.7" />
       <Circle cx="25" cy="25" r="10" fill="#9370DB" opacity="0.9" />
       <Circle cx="25" cy="25" r="5" fill="#BA55D3" />
-      <G fill="none" stroke="#EE82EE" strokeWidth="1">
+      <SafeG fill="none" stroke="#EE82EE" strokeWidth="1">
         <Path d="M15 15 C25 5, 35 15, 35 25" />
         <Path d="M35 25 C45 35, 35 45, 25 45" />
         <Path d="M25 45 C15 35, 5 25, 15 15" />
-      </G>
-      <G fill="#FFFFFF">
+      </SafeG>
+      <SafeG fill="#FFFFFF">
         <Circle cx="20" cy="20" r="1" />
         <Circle cx="30" cy="20" r="1" />
         <Circle cx="20" cy="30" r="1" />
@@ -392,23 +401,23 @@ const minerSvgIcons = {
         <Circle cx="25" cy="35" r="1" />
         <Circle cx="15" cy="25" r="1" />
         <Circle cx="35" cy="25" r="1" />
-      </G>
+      </SafeG>
     </Svg>
   ),
   'time-miner.png': (size: number) => (
     <Svg width={size} height={size} viewBox="0 0 50 50">
       <Circle cx="25" cy="25" r="20" fill="#4682B4" opacity="0.7" />
       <Circle cx="25" cy="25" r="18" fill="none" stroke="#87CEEB" strokeWidth="2" />
-      <G>
+      <SafeG>
         <Path d="M25 10 L25 25 L40 25" fill="none" stroke="#E0FFFF" strokeWidth="2" strokeLinecap="round" />
-      </G>
-      <G fill="#ADD8E6">
+      </SafeG>
+      <SafeG fill="#ADD8E6">
         <Circle cx="25" cy="10" r="2" />
         <Circle cx="40" cy="25" r="2" />
         <Circle cx="25" cy="40" r="2" />
         <Circle cx="10" cy="25" r="2" />
-      </G>
-      <G fill="#F0F8FF" opacity="0.8">
+      </SafeG>
+      <SafeG fill="#F0F8FF" opacity="0.8">
         <Circle cx="17" cy="13" r="1" />
         <Circle cx="33" cy="13" r="1" />
         <Circle cx="37" cy="17" r="1" />
@@ -417,7 +426,7 @@ const minerSvgIcons = {
         <Circle cx="17" cy="37" r="1" />
         <Circle cx="13" cy="33" r="1" />
         <Circle cx="13" cy="17" r="1" />
-      </G>
+      </SafeG>
     </Svg>
   ),
   'black-hole-miner.png': (size: number) => (
@@ -426,18 +435,18 @@ const minerSvgIcons = {
       <Circle cx="25" cy="25" r="15" fill="#222" />
       <Circle cx="25" cy="25" r="10" fill="#333" />
       <Circle cx="25" cy="25" r="5" fill="#444" />
-      <G>
+      <SafeG>
         <Path d="M5 25 C5 15, 15 5, 25 5" stroke="#FB00FF" strokeWidth="1" fill="none" />
         <Path d="M25 5 C35 5, 45 15, 45 25" stroke="#00FBFF" strokeWidth="1" fill="none" />
         <Path d="M45 25 C45 35, 35 45, 25 45" stroke="#FBFF00" strokeWidth="1" fill="none" />
         <Path d="M25 45 C15 45, 5 35, 5 25" stroke="#00FF77" strokeWidth="1" fill="none" />
-      </G>
-      <G fill="white">
+      </SafeG>
+      <SafeG fill="white">
         <Circle cx="25" cy="18" r="1" />
         <Circle cx="28" cy="22" r="0.5" />
         <Circle cx="22" cy="20" r="0.5" />
         <Circle cx="23" cy="28" r="0.7" />
-      </G>
+      </SafeG>
     </Svg>
   ),
   'infinity-miner.png': (size: number) => (
@@ -630,12 +639,12 @@ const minerSvgIcons = {
       <Circle cx="25" cy="24" r="10" fill="none" stroke="#40E0D0" strokeWidth="0.3" strokeDasharray="0.5,1.5" />
       
       {/* Holographic dimension scanner */}
-      <G opacity="0.7">
+      <SafeG opacity="0.7">
         <Path d="M17 15 L20 15 L20 18 L17 18 Z" fill="#E0FFFF" />
         <Path d="M30 15 L33 15 L33 18 L30 18 Z" fill="#E0FFFF" />
         <Path d="M17 30 L20 30 L20 33 L17 33 Z" fill="#E0FFFF" />
         <Path d="M30 30 L33 30 L33 33 L30 33 Z" fill="#E0FFFF" />
-      </G>
+      </SafeG>
       
       {/* Dimension crossing beams */}
       <Path d="M17 16.5 L33 16.5" stroke="#00FFFF" strokeWidth="0.3" strokeDasharray="0.5,0.5" />
@@ -778,10 +787,28 @@ export default function MinerIcon({ size, position = 'right', minerType }: Miner
   };
 
   const renderSvgIcon = () => {
-    // Get the appropriate icon type and use fallback if not found
-    const iconType = getMinerIconType(minerType);
-    const iconRenderer = minerSvgIcons[iconType] || minerSvgIcons['caveman-apprentice.png'];
-    return iconRenderer(size);
+    try {
+      // Get the appropriate icon type and use fallback if not found
+      const iconType = getMinerIconType(minerType);
+      const iconRenderer = minerSvgIcons[iconType] || minerSvgIcons['caveman-apprentice.png'];
+      
+      // Wrap the entire SVG in Text components to prevent text rendering errors with G elements
+      return (
+        <Text>
+          {iconRenderer(size)}
+        </Text>
+      );
+    } catch (error) {
+      console.error('Error rendering miner icon:', error);
+      // Return a fallback simple icon without text
+      return (
+        <Text>
+          <Svg width={size} height={size} viewBox="0 0 50 50">
+            <Circle cx="25" cy="25" r="20" fill="#8B4513" />
+          </Svg>
+        </Text>
+      );
+    }
   };
 
   // Calculate position based on placement around the rock

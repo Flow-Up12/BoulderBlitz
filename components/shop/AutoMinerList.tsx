@@ -14,9 +14,10 @@ type AutoMinerItemProps = {
   onEvolve: (id: string) => void;
   disabled: boolean;
   canEvolve: boolean;
+  index: number;
 };
 
-const AutoMinerItem = ({ autoMiner, onPress, onEvolve, disabled, canEvolve }: AutoMinerItemProps) => {
+const AutoMinerItem = ({ autoMiner, onPress, onEvolve, disabled, canEvolve, index }: AutoMinerItemProps) => {
   // Determine evolution border and glow colors based on evolution level
   const getEvolutionColors = (level = 0) => {
     switch (level) {
@@ -61,7 +62,7 @@ const AutoMinerItem = ({ autoMiner, onPress, onEvolve, disabled, canEvolve }: Au
       <View style={styles.evolutionStars}>
         {[...Array(autoMiner.evolutionLevel)].map((_, i) => (
           <MaterialCommunityIcons 
-            key={i} 
+            key={`star-${i}`} 
             name="star" 
             size={14} 
             color={evolutionColors.starColor} 
@@ -128,7 +129,7 @@ const AutoMinerItem = ({ autoMiner, onPress, onEvolve, disabled, canEvolve }: Au
         
         <View style={styles.minerContent}>
           <Text style={styles.minerName}>
-            {autoMiner.name} {autoMiner.quantity > 0 ? `(${autoMiner.quantity})` : ''}
+            {autoMiner.name}{autoMiner.quantity > 0 ? <Text> ({autoMiner.quantity})</Text> : null}
             {autoMiner.evolutionLevel > 0 && 
               <Text style={[styles.evolutionText, {color: evolutionColors.starColor}]}>
                 {" "}[Tier {autoMiner.evolutionLevel}]
@@ -153,7 +154,7 @@ const AutoMinerItem = ({ autoMiner, onPress, onEvolve, disabled, canEvolve }: Au
               <View style={styles.buttonContainer}>
                 <View style={styles.cpsContainer}>
                   <Text style={styles.cpsText}>
-                    +{formatNumber(getEffectiveCPS())} CPS
+                    <Text>+{formatNumber(getEffectiveCPS())} CPS</Text>
                   </Text>
                 </View>
                 
@@ -164,14 +165,16 @@ const AutoMinerItem = ({ autoMiner, onPress, onEvolve, disabled, canEvolve }: Au
                     disabled={!canEvolve}
                   >
                     <Text style={styles.evolveText}>
-                      Evolve ({autoMiner.evolutionCost} 🌟)
+                      <Text>Evolve ({autoMiner.evolutionCost})</Text> <Text>🌟</Text>
                     </Text>
                   </TouchableOpacity>
                 )}
                 
                 {autoMiner.evolutionLevel === 3 && (
                   <View style={styles.maxEvolvedBadge}>
-                    <Text style={styles.maxEvolvedText}>MAX</Text>
+                    <Text style={styles.maxEvolvedText}>
+                      <Text>MAX</Text>
+                    </Text>
                   </View>
                 )}
               </View>
@@ -214,7 +217,7 @@ export default function AutoMinerList() {
     });
   };
   
-  const renderMinerItem = ({ item }: { item: AutoMiner }) => {
+  const renderMinerItem = ({ item, index }: { item: AutoMiner, index: number }) => {
     const canAfford = state.coins >= item.cost;
     const canEvolve = item.owned && 
                      item.quantity > 0 &&
@@ -228,13 +231,16 @@ export default function AutoMinerList() {
         onEvolve={handleEvolveMiner}
         disabled={!canAfford}
         canEvolve={canEvolve}
+        index={index}
       />
     );
   };
   
   // Create ListHeaderComponent for the FlatList
   const ListHeader = () => (
-    <Text style={styles.title}>Auto Miners</Text>
+    <Text style={styles.title}>
+      <Text>Auto Miners</Text>
+    </Text>
   );
   
   return (
@@ -242,7 +248,7 @@ export default function AutoMinerList() {
       <FlatList
         data={state.autoMiners}
         renderItem={renderMinerItem}
-        keyExtractor={item => item.id}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         contentContainerStyle={styles.list}
         ListHeaderComponent={ListHeader}
       />

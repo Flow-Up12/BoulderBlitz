@@ -72,7 +72,9 @@ export default function WelcomeScreen() {
           resizeMode="contain"
         />
         <ActivityIndicator size="large" color="#FCE2A9" />
-        <Text style={styles.loadingText}>Loading BoulderBlitz...</Text>
+        <Text style={styles.loadingText}>
+          <Text>Loading BoulderBlitz...</Text>
+        </Text>
       </View>
     );
   }
@@ -93,11 +95,11 @@ export default function WelcomeScreen() {
           />
           
           <Animated.Text style={[styles.title, { opacity: titleOpacity }]}>
-            BoulderBlitz
+            <Text>BoulderBlitz</Text>
           </Animated.Text>
           
           <Text style={styles.subtitle}>
-            A prehistoric clicking adventure
+            <Text>A prehistoric clicking adventure</Text>
           </Text>
           
           <Animated.View 
@@ -111,7 +113,7 @@ export default function WelcomeScreen() {
               onPress={navigateToGame}
             >
               <Text style={styles.playButtonText}>
-                Start Game
+                <Text>Start Game</Text>
               </Text>
             </TouchableOpacity>
           </Animated.View>

@@ -6,9 +6,10 @@ import { Achievement } from '../../context/GameContext';
 
 type AchievementItemProps = {
   achievement: Achievement;
+  index: number;
 };
 
-const AchievementItem = ({ achievement }: AchievementItemProps) => {
+const AchievementItem = ({ achievement, index }: AchievementItemProps) => {
   return (
     <View 
       style={[
@@ -17,20 +18,28 @@ const AchievementItem = ({ achievement }: AchievementItemProps) => {
       ]}
     >
       <View style={styles.achievementIcon}>
-        <MaterialCommunityIcons 
-          name={achievement.unlocked ? "trophy" : "trophy-outline"} 
-          size={24} 
-          color={achievement.unlocked ? '#FFD700' : '#555555'} 
-        />
+        <Text>
+          <MaterialCommunityIcons 
+            name={achievement.unlocked ? "trophy" : "trophy-outline"} 
+            size={24} 
+            color={achievement.unlocked ? '#FFD700' : '#555555'} 
+          />
+        </Text>
       </View>
       
       <View style={styles.achievementContent}>
-        <Text style={styles.achievementName}>{achievement.name}</Text>
-        <Text style={styles.achievementDescription}>{achievement.description}</Text>
+        <Text style={styles.achievementName}>
+          <Text>{achievement.name}</Text>
+        </Text>
+        <Text style={styles.achievementDescription}>
+          <Text>{achievement.description}</Text>
+        </Text>
         
         {achievement.reward && achievement.unlocked && (
           <View style={styles.rewardBadge}>
-            <Text style={styles.rewardText}>+{achievement.reward}% CPC</Text>
+            <Text style={styles.rewardText}>
+              <Text>+{achievement.reward}% CPC</Text>
+            </Text>
           </View>
         )}
       </View>
@@ -41,8 +50,13 @@ const AchievementItem = ({ achievement }: AchievementItemProps) => {
 export default function AchievementList() {
   const { state } = useGameContext();
   
-  const renderAchievementItem = ({ item }: { item: Achievement }) => {
-    return <AchievementItem achievement={item} />;
+  const renderAchievementItem = ({ item, index }: { item: Achievement, index: number }) => {
+    return (
+      <AchievementItem 
+        achievement={item} 
+        index={index} 
+      />
+    );
   };
   
   // Calculate completion percentage
@@ -50,11 +64,24 @@ export default function AchievementList() {
   const totalCount = state.achievements.length;
   const completionPercentage = Math.round((unlockedCount / totalCount) * 100);
   
+  // Create a text component for empty state
+  const EmptyComponent = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>
+        <Text>No achievements yet. Keep clicking!</Text>
+      </Text>
+    </View>
+  );
+  
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Achievements</Text>
-        <Text style={styles.completion}>{completionPercentage}% Complete</Text>
+        <Text style={styles.title}>
+          <Text>Achievements</Text>
+        </Text>
+        <Text style={styles.completion}>
+          <Text>{completionPercentage}% Complete</Text>
+        </Text>
       </View>
       
       <View style={styles.progressBar}>
@@ -64,13 +91,9 @@ export default function AchievementList() {
       <FlatList
         data={state.achievements}
         renderItem={renderAchievementItem}
-        keyExtractor={item => item.id}
+        keyExtractor={(item, index) => `achievement-${item.id}-${index}`}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No achievements yet. Keep clicking!</Text>
-          </View>
-        }
+        ListEmptyComponent={<EmptyComponent />}
       />
     </View>
   );

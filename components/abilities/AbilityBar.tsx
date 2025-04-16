@@ -70,9 +70,11 @@ const AbilityBar = () => {
             onPress={() => isReady && activateAbility(ability.id)}
             disabled={!isReady}
           >
-            <View style={styles.abilityIconContainer}>
-              {getAbilityIcon(ability.id, isActive, isOnCooldown, isReady)}
-            </View>
+            <Text>
+              <View style={styles.abilityIconContainer}>
+                {getAbilityIcon(ability.id, isActive, isOnCooldown, isReady)}
+              </View>
+            </Text>
             
             {(isActive || isOnCooldown) && (
               <View style={styles.progressContainer}>
@@ -82,14 +84,16 @@ const AbilityBar = () => {
                   style={styles.progressBar} 
                 />
                 <Text style={styles.timeLabel}>
-                  {isActive ? 'ACTIVE: ' : 'COOLDOWN: '}
-                  {timeLabel}
+                  <Text>{isActive ? 'ACTIVE: ' : 'COOLDOWN: '}</Text>
+                  <Text>{timeLabel}</Text>
                 </Text>
               </View>
             )}
             
             {isReady && (
-              <Text style={styles.readyLabel}>READY</Text>
+              <Text style={styles.readyLabel}>
+                <Text>READY</Text>
+              </Text>
             )}
           </TouchableOpacity>
         );
@@ -106,18 +110,24 @@ const getAbilityIcon = (
 ) => {
   const color = isActive ? '#FFA500' : (isOnCooldown ? '#6495ED' : '#4CAF50');
   
-  switch (abilityId) {
-    case 'coin-scatter':
-      return <Ionicons name="cash" size={24} color={color} />;
-    case 'auto-tap':
-      return <Ionicons name="finger-print" size={24} color={color} />;
-    case 'gold-rush':
-      return <Ionicons name="star" size={24} color={color} />;
-    case 'miners-frenzy':
-      return <Ionicons name="speedometer" size={24} color={color} />;
-    default:
-      return <Ionicons name="rocket" size={24} color={color} />;
-  }
+  return (
+    <Text>
+      {(() => {
+        switch (abilityId) {
+          case 'coin-scatter':
+            return <Ionicons name="cash" size={24} color={color} />;
+          case 'auto-tap':
+            return <Ionicons name="finger-print" size={24} color={color} />;
+          case 'gold-rush':
+            return <Ionicons name="star" size={24} color={color} />;
+          case 'miners-frenzy':
+            return <Ionicons name="speedometer" size={24} color={color} />;
+          default:
+            return <Ionicons name="rocket" size={24} color={color} />;
+        }
+      })()}
+    </Text>
+  );
 };
 
 const styles = StyleSheet.create({

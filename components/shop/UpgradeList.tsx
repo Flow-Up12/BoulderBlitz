@@ -266,6 +266,7 @@ export default function UpgradeList() {
     
     return (
       <UpgradeItem
+        key={item.id}
         upgrade={item}
         onPress={() => handleBuyUpgrade(item)}
         onEquip={handleEquipPickaxe}

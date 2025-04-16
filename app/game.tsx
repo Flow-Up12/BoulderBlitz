@@ -457,14 +457,18 @@ export default function GameScreen() {
         />
         <ActivityIndicator size="large" color="#8B5A2B" />
         <Text style={styles.loadingText}>
-          {authState.isAuthenticated 
-            ? 'Loading your saved game data...' 
-            : 'Loading game data...'}
+          <Text>
+            {authState.isAuthenticated 
+              ? 'Loading your saved game data...' 
+              : 'Loading game data...'}
+          </Text>
         </Text>
         <Text style={styles.loadingSubText}>
-          {authState.isAuthenticated 
-            ? 'Retrieving your mining empire...' 
-            : 'First time? Your adventure is about to begin!'}
+          <Text>
+            {authState.isAuthenticated 
+              ? 'Retrieving your mining empire...' 
+              : 'First time? Your adventure is about to begin!'}
+          </Text>
         </Text>
       </SafeAreaView>
     );
@@ -560,13 +564,17 @@ export default function GameScreen() {
                       styles.arrow,
                       { transform: [{ rotate: isShopExpanded ? '180deg' : '0deg' }] }
                     ]}>
-                      <Text style={styles.arrowText}>▲</Text>
+                      <Text style={styles.arrowText}>
+                        <Text>▲</Text>
+                      </Text>
                     </Animated.View>
                   </View>
                 </View>
-                <Text style={styles.panelTitle}>SHOP</Text>
+                <Text style={styles.panelTitle}>
+                  <Text>SHOP</Text>
+                </Text>
                 <Text style={styles.expandCollapseText}>
-                  {isShopExpanded ? 'Tap to collapse' : 'Tap to expand'}
+                  <Text>{isShopExpanded ? 'Tap to collapse' : 'Tap to expand'}</Text>
                 </Text>
               </TouchableOpacity>
               

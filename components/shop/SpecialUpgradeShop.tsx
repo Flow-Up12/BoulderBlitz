@@ -132,6 +132,7 @@ export default function SpecialUpgradeShop() {
     
     return (
       <SpecialUpgradeItem
+        key={item.id}
         upgrade={item}
         onPress={() => handleBuySpecialUpgrade(item.id)}
         disabled={!canAfford}
