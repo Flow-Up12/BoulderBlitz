@@ -11,7 +11,10 @@
     "test": "node -e \"import('./lib/supabase/test-database.js').then(module => module.default()).then(console.log)\"",
     "test:user": "node scripts/test-user-creation.js",
     "fix:rls": "npx ts-node scripts/fix-supabase-rls.ts",
-    "fix:rls:simple": "node scripts/fix-rls-simple.js"
+    "fix:rls:simple": "node scripts/fix-rls-simple.js",
+    "deploy:ios": "npx eas build --platform ios --profile production && npx eas submit --platform ios",
+    "deploy:android": "npx eas build --platform android --profile production && npx eas submit --platform android",
+    "deploy": "npx eas build --platform all --profile production && npx eas submit --platform all"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",
